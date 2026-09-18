@@ -3,8 +3,8 @@
 #   Producción (HTTP en el puerto APP_PORT, detrás de tu propio proxy):
 #     docker compose up -d --build
 #
-#   Producción con HTTPS automático (Caddy + Let's Encrypt, necesita DOMAIN en .env
-#   y los puertos 80/443 libres en el servidor):
+#   Producción con HTTPS automático (Caddy + Let's Encrypt para www.paolosaxton.com,
+#   ver docker/Caddyfile; necesita los puertos 80/443 libres en el servidor):
 #     docker compose --profile https up -d --build
 #
 #   Desarrollo (recompila al guardar, http://127.0.0.1:8888/):
@@ -31,7 +31,6 @@ services:
       - "443:443"
       - "443:443/udp"
     environment:
-      DOMAIN: ${DOMAIN:-}
       ACME_EMAIL: ${ACME_EMAIL:-}
     volumes:
       - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro

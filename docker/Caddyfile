@@ -1,10 +1,16 @@
-# Proxy inverso con HTTPS automático (Let's Encrypt).
-# DOMAIN y ACME_EMAIL se leen de las variables de entorno del contenedor (fichero .env).
+# Proxy inverso con HTTPS automático (Let's Encrypt) para www.paolosaxton.com.
+# ACME_EMAIL se lee del fichero .env (aviso de caducidad de certificados).
+
 {
     email {$ACME_EMAIL}
 }
 
-{$DOMAIN} {
+www.paolosaxton.com {
     encode gzip
     reverse_proxy app:80
+}
+
+# El dominio sin "www" redirige al principal.
+paolosaxton.com {
+    redir https://www.paolosaxton.com{uri} permanent
 }

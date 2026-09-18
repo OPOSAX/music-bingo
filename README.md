@@ -103,17 +103,35 @@ app con nginx. Todo se orquesta con `docker-compose.yml`.
 ### Con HTTPS automático (Caddy + Let's Encrypt)
 
 Spotify exige `https://` en el Redirect URI para cualquier host que no sea `127.0.0.1`,
-así que necesitas un dominio apuntando al servidor. En el servidor:
+así que la app se sirve en **https://www.paolosaxton.com/** (dominio definido en
+`docker/Caddyfile`; `paolosaxton.com` redirige al `www`).
 
-```bash
-git clone https://github.com/OPOSAX/music-bingo.git /opt/music-bingo
-cd /opt/music-bingo
-cp .env.example .env        # edita DOMAIN y ACME_EMAIL (obligatorio para este perfil)
-docker compose --profile https up -d --build
-```
+1. **DNS**: en el panel del dominio crea dos registros A apuntando a la IP del servidor:
 
-Caddy obtiene el certificado solo. Añade `https://TU-DOMINIO/` como Redirect URI en el panel
-de Spotify y listo.
+   | Nombre | Tipo | Valor            |
+   | ------ | ---- | ---------------- |
+   | `www`  | A    | `158.69.117.161` |
+   | `@`    | A    | `158.69.117.161` |
+
+   Hasta que el DNS apunte al servidor, Caddy no puede obtener el certificado.
+
+2. **Servidor** (Ubuntu/Debian, como root). El script instala Docker si falta, clona el
+   repositorio en `/opt/music-bingo`, crea `.env`, abre los puertos 80/443 en ufw y arranca:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/OPOSAX/music-bingo/main/deploy/setup-server.sh | sudo bash
+   ```
+
+   Ejecutarlo de nuevo actualiza a la última versión de `main`. A mano sería:
+
+   ```bash
+   git clone https://github.com/OPOSAX/music-bingo.git /opt/music-bingo
+   cd /opt/music-bingo
+   cp .env.example .env        # pon tu correo en ACME_EMAIL
+   docker compose --profile https up -d --build
+   ```
+
+3. **Spotify**: añade `https://www.paolosaxton.com/` como Redirect URI en el panel de tu app.
 
 ### Detrás de tu propio proxy inverso
 
@@ -139,6 +157,9 @@ y apunta tu proxy a ese puerto (`APP_PORT` en `.env` lo cambia).
 | Secret   | `DEPLOY_PATH`    | ruta del clon en el servidor, p. ej. `/opt/music-bingo`  |
 | Variable | `DEPLOY_ENABLED` | `true`                                                   |
 | Variable | `DEPLOY_PROFILE` | `https` si usas Caddy; vacío si usas tu propio proxy     |
+
+Para el servidor OVH: `DEPLOY_HOST=158.69.117.161`, `DEPLOY_PATH=/opt/music-bingo`,
+`DEPLOY_PROFILE=https`.
 
 Genera la clave con `ssh-keygen -t ed25519 -f deploy_key -N ""`, añade `deploy_key.pub` a
 `~/.ssh/authorized_keys` del usuario en el servidor y guarda el contenido de `deploy_key`
@@ -169,7 +190,8 @@ tests/            Pruebas con node:test
 serve.mjs         Servidor estático de desarrollo
 Dockerfile        Imagen de producción (compila + nginx)
 docker-compose.yml Perfiles: por defecto (app), https (Caddy), dev
-docker/           nginx.conf y Caddyfile
+docker/           nginx.conf y Caddyfile (dominio www.paolosaxton.com)
+deploy/           setup-server.sh: instalación/actualización en el servidor
 ```
 
 ## Limitaciones conocidas

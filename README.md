@@ -137,11 +137,10 @@ para tu web: mientras no haya nada, redirige al bingo).
 
 ### Detrás de tu propio servidor web
 
-Si `www.paolosaxton.com` ya lo sirve un nginx o Apache en el servidor (puertos 80/443
-ocupados), arranca solo la app:
+Si prefieres configurar el proxy a mano (o usas Traefik u otro), arranca solo la app:
 
 ```bash
-docker compose up -d --build     # publica la app en http://127.0.0.1:8080
+docker compose up -d --build     # publica la app en http://127.0.0.1:8080 (solo local)
 ```
 
 y añade a tu sitio la ruta `/bingomusical/` apuntando a ese puerto. En

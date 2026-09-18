@@ -1,6 +1,6 @@
 # Bingo musical · Docker Compose
 #
-#   Producción (HTTP en el puerto APP_PORT, detrás de tu propio proxy):
+#   Producción (HTTP en 127.0.0.1:APP_PORT, detrás de tu propio nginx/Apache/proxy):
 #     docker compose up -d --build
 #
 #   Producción con HTTPS automático (Caddy + Let's Encrypt, https://www.paolosaxton.com/bingomusical/,
@@ -18,7 +18,8 @@ services:
     image: music-bingo:latest
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-8080}:80"
+      # Solo accesible desde el propio servidor (Caddy o tu proxy inverso la exponen).
+      - "127.0.0.1:${APP_PORT:-8080}:80"
 
   caddy:
     image: caddy:2-alpine

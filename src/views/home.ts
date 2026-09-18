@@ -120,7 +120,7 @@ function renderPlayerAccess(): HTMLElement {
     'form',
     { class: 'panel' },
     h('h2', null, 'Jugador'),
-    h('p', null, 'Si el anfitrión te ha enviado un enlace, ábrelo directamente o pégalo aquí. No necesitas cuenta de Spotify.'),
+    h('p', null, 'Escanea el código QR de tu tarjeta con la cámara del móvil, o si el anfitrión te ha enviado un enlace, pégalo aquí. No necesitas cuenta de Spotify.'),
     h('div', { class: 'row' }, input, h('button', { class: 'btn', type: 'submit' }, 'Abrir tarjeta')),
   );
   form.addEventListener('submit', (ev) => {

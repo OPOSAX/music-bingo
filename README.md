@@ -19,8 +19,10 @@ dependencias en tiempo de ejecución**. Solo hace falta un servidor de archivos 
 - **Tarjetas 3×3, 4×4 o 5×5**, con casilla central libre opcional; hasta 500 tarjetas por partida.
 - **Tarjetas deterministas**: se generan a partir del código de partida, así que el anfitrión
   puede **comprobar cualquier tarjeta por su número** y ver si tiene línea o bingo.
-- **Reparto sin servidor**: cada tarjeta tiene un enlace autocontenido (comprimido) que se
-  puede copiar, compartir con la hoja nativa del móvil o imprimir.
+- **Reparto por QR sin servidor**: cada tarjeta tiene un enlace autocontenido (comprimido)
+  y su **código QR**. La pantalla *Repartir con QR* muestra los QR en grande de uno en uno
+  para que cada jugador escanee el suyo; las tarjetas impresas también llevan su QR, y el
+  enlace se puede copiar o compartir con la hoja nativa del móvil.
 - **Vista de jugador**: toca para marcar, detección automática de línea y bingo, marcas
   guardadas en el dispositivo.
 - **Pantalla del anfitrión**: canción oculta hasta que la reveles, historial, contador,
@@ -74,8 +76,10 @@ Variables opcionales: `PORT` (por defecto 8888) y `HOST` (por defecto `127.0.0.1
 1. **Nueva partida**: elige una de tus listas o pega la URL de cualquier lista pública,
    ajusta tamaño de tarjeta, número de tarjetas y duración del fragmento, y pulsa
    **Crear partida**. Se necesitan al menos tantas canciones como casillas (se recomienda el doble).
-2. **Reparte las tarjetas** desde la pantalla *Tarjetas*: imprímelas o envía a cada persona
-   el enlace de su tarjeta (botón *Copiar enlace* o *Compartir…*). Cada tarjeta tiene un
+2. **Reparte las tarjetas** con *Repartir con QR*: la pantalla muestra el QR de la tarjeta 1
+   en grande; el primer jugador lo escanea con la cámara del móvil, pulsas *Siguiente*
+   (o la flecha derecha) y así sucesivamente. También puedes imprimirlas (llevan su QR) o
+   enviar el enlace de cada tarjeta (*Copiar enlace* o *Compartir…*). Cada tarjeta tiene un
    código `PARTIDA-Nº`.
 3. En la pantalla del anfitrión pulsa **Usar este navegador** (o elige otro dispositivo de
    Spotify) y luego **Empezar**. Cada pulsación de **Siguiente canción** reproduce un
@@ -103,6 +107,7 @@ src/
   bingo.ts        Generación de tarjetas y detección de líneas/bingo (lógica pura)
   rng.ts          Aleatoriedad determinista
   share.ts        Codificación de tarjetas en enlaces
+  qr.ts           Generador de códigos QR (sin dependencias)
   store.ts        Persistencia en localStorage
   views/          Pantallas: inicio, configuración, anfitrión, tarjetas, jugador
 tests/            Pruebas con node:test
@@ -116,3 +121,5 @@ serve.mjs         Servidor estático de desarrollo
   para apps en modo desarrollo; usa listas propias o de otros usuarios.
 - Los enlaces de tarjeta contienen las canciones, no se sincronizan con el anfitrión:
   la comprobación oficial siempre la hace el anfitrión con el número de tarjeta.
+- El QR contiene la tarjeta completa, así que con tarjetas 5×5 y títulos largos puede ser
+  denso; muéstralo grande en pantalla (la vista de reparto ya lo hace) o imprímelo a 3 cm o más.

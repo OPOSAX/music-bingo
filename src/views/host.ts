@@ -28,7 +28,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       'header',
       { class: 'page-header' },
       h('div', null, h('h1', null, `Partida ${game.config.seed}`), h('p', { class: 'muted' }, `${game.playlistName} · ${game.tracks.length} canciones · ${cards.length} tarjetas · ${game.config.gridSize}×${game.config.gridSize}`)),
-      h('div', { class: 'actions' }, button('Tarjetas', () => navigate('/cards'), 'btn'), button('Inicio', () => navigate('/'), 'btn btn-link')),
+      h('div', { class: 'actions' }, button('📱 Repartir con QR', () => navigate('/deal'), 'btn'), button('Tarjetas', () => navigate('/cards'), 'btn'), button('Inicio', () => navigate('/'), 'btn btn-link')),
     ),
   );
 

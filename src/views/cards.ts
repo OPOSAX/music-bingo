@@ -8,6 +8,7 @@ import type { SharedCard } from '../share.js';
 import { encodeSharedCard } from '../share.js';
 import type { GameState } from '../store.js';
 import { gameCards, loadGame } from '../store.js';
+import { encodeText, toSvgElement } from '../qr.js';
 import { renderCardGrid } from './card-grid.js';
 
 export function cardShareUrl(game: GameState, index: number): Promise<string> {
@@ -39,11 +40,11 @@ export async function renderCards(root: HTMLElement): Promise<void> {
       'header',
       { class: 'page-header no-print' },
       h('div', null, h('h1', null, `Tarjetas · partida ${game.config.seed}`), h('p', { class: 'muted' }, `${cards.length} tarjetas · ${game.playlistName}`)),
-      h('div', { class: 'actions' }, button('🖨 Imprimir', () => window.print(), 'btn'), button('Copiar todos los enlaces', () => void copyAll(), 'btn'), button('← Partida', () => navigate('/host'), 'btn btn-link')),
+      h('div', { class: 'actions' }, button('📱 Repartir con QR', () => navigate('/deal'), 'btn btn-primary'), button('🖨 Imprimir', () => window.print(), 'btn'), button('Copiar todos los enlaces', () => void copyAll(), 'btn'), button('← Partida', () => navigate('/host'), 'btn btn-link')),
     ),
   );
   root.appendChild(
-    h('p', { class: 'muted no-print' }, 'Cada jugador necesita una tarjeta: imprímelas, o envía a cada persona el enlace de su tarjeta (se abre en el móvil sin cuenta de Spotify). El anfitrión puede comprobar cualquier tarjeta por su número.'),
+    h('p', { class: 'muted no-print' }, 'Cada jugador necesita una tarjeta: muestra los códigos QR en pantalla para que cada persona escanee el suyo, imprímelas (llevan su QR) o envía el enlace por mensaje. Los jugadores no necesitan cuenta de Spotify. El anfitrión puede comprobar cualquier tarjeta por su número.'),
   );
 
   const list = h('div', { class: 'cards-list' });
@@ -76,11 +77,16 @@ export async function renderCards(root: HTMLElement): Promise<void> {
     }
     actions.appendChild(button('Abrir', () => void cardShareUrl(game, card.index).then((url) => window.open(url, '_blank')), 'btn btn-sm'));
 
+    const qrHost = h('div', { class: 'card-qr' });
+    void cardShareUrl(game, card.index)
+      .then((url) => qrHost.appendChild(toSvgElement(encodeText(url), { border: 2 })))
+      .catch(() => qrHost.remove());
+
     list.appendChild(
       h(
         'article',
         { class: 'card-sheet' },
-        h('header', { class: 'card-sheet-header' }, h('h3', null, `Tarjeta ${card.index + 1}`), h('span', { class: 'muted' }, `Código ${label} · ${game.playlistName}`)),
+        h('header', { class: 'card-sheet-header' }, h('div', null, h('h3', null, `Tarjeta ${card.index + 1}`), h('span', { class: 'muted' }, `Código ${label} · ${game.playlistName}`)), qrHost),
         renderCardGrid({
           gridSize: card.gridSize,
           cells: card.cells.map((c) => (c === null ? null : { title: (game.tracks[c] as Track).name, subtitle: (game.tracks[c] as Track).artists })),

@@ -22,7 +22,7 @@ export function cardShareUrl(game: GameState, index: number): Promise<string> {
     t: game.playlistName,
     c: card.cells.map((c) => (c === null ? null : [(game.tracks[c] as Track).name, (game.tracks[c] as Track).artists])),
   };
-  return encodeSharedCard(shared).then((payload) => `${location.origin}${location.pathname}#/card?d=${payload}`);
+  return encodeSharedCard(shared).then((payload) => `${location.origin}${location.pathname.replace(/index\.html$/, '')}#/card?d=${payload}`);
 }
 
 export async function renderCards(root: HTMLElement): Promise<void> {

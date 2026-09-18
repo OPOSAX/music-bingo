@@ -38,9 +38,12 @@ export function setClientId(id: string): void {
   localStorage.setItem(CLIENT_ID_KEY, id.trim());
 }
 
-/** URI de redirección: la propia página, sin query ni hash. Debe registrarse tal cual en el panel de Spotify. */
+/**
+ * URI de redirección: la propia página (sin query, hash ni "index.html").
+ * Debe registrarse tal cual en el panel de Spotify, p. ej. https://www.paolosaxton.com/bingomusical/
+ */
 export function redirectUri(): string {
-  return `${location.origin}${location.pathname}`;
+  return `${location.origin}${location.pathname.replace(/index\.html$/, '')}`;
 }
 
 function readTokens(): StoredTokens | null {

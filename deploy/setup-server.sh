@@ -10,6 +10,8 @@
 #   REPO_URL    repositorio a clonar (por defecto https://github.com/OPOSAX/music-bingo.git)
 #   BRANCH      rama a desplegar (por defecto main)
 #   ACME_EMAIL  correo para Let's Encrypt (se pide si no hay .env)
+#   PROFILE     "https" (Caddy en 80/443), "" (solo la app en 127.0.0.1:8080, detrás de tu
+#               propio nginx/Apache) o "auto" (por defecto: https si 80/443 están libres)
 
 set -euo pipefail
 
@@ -17,6 +19,8 @@ APP_DIR="${APP_DIR:-/opt/music-bingo}"
 REPO_URL="${REPO_URL:-https://github.com/OPOSAX/music-bingo.git}"
 BRANCH="${BRANCH:-main}"
 DOMAIN="www.paolosaxton.com"
+APP_URL="https://$DOMAIN/bingomusical/"
+PROFILE="${PROFILE:-auto}"
 
 log() { printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
 
@@ -75,11 +79,30 @@ if [ -n "$server_ip" ] && [ "$dns_ip" != "$server_ip" ]; then
   echo "Caddy no podrá obtener el certificado hasta que el registro A apunte aquí."
 fi
 
-# 6. Arrancar
+# 6. ¿Hay ya un servidor web en los puertos 80/443?
+if [ "$PROFILE" = "auto" ]; then
+  PROFILE="https"
+  busy="$(ss -Hltn 'sport = :80 or sport = :443' 2>/dev/null | grep -v docker || true)"
+  if [ -n "$busy" ] && ! docker compose ps --services --status running 2>/dev/null | grep -q caddy; then
+    printf '\n\033[1;33mAVISO:\033[0m ya hay algo escuchando en los puertos 80/443:\n%s\n' "$busy"
+    echo "Se arranca solo la app en 127.0.0.1:8080. Configura tu servidor web con deploy/nginx-site.example.conf"
+    PROFILE=""
+  fi
+fi
+
+# 7. Arrancar
 log "Construyendo y arrancando los contenedores"
-docker compose --profile https up -d --build --remove-orphans
+if [ -n "$PROFILE" ]; then
+  docker compose --profile "$PROFILE" up -d --build --remove-orphans
+else
+  docker compose up -d --build --remove-orphans
+fi
 docker image prune -f >/dev/null
 
-log "Listo. La app estará en https://$DOMAIN/ en cuanto el DNS y el certificado estén activos."
-echo "Registra https://$DOMAIN/ como Redirect URI en https://developer.spotify.com/dashboard"
-echo "Logs: docker compose -f $APP_DIR/docker-compose.yml --profile https logs -f"
+log "Listo. La app estará en $APP_URL en cuanto el DNS y el certificado estén activos."
+echo "Registra $APP_URL como Redirect URI en https://developer.spotify.com/dashboard"
+if [ -n "$PROFILE" ]; then
+  echo "Logs: docker compose -f $APP_DIR/docker-compose.yml --profile $PROFILE logs -f"
+else
+  echo "Logs: docker compose -f $APP_DIR/docker-compose.yml logs -f"
+fi

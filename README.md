@@ -103,8 +103,9 @@ app con nginx. Todo se orquesta con `docker-compose.yml`.
 ### Con HTTPS automático (Caddy + Let's Encrypt)
 
 Spotify exige `https://` en el Redirect URI para cualquier host que no sea `127.0.0.1`,
-así que la app se sirve en **https://www.paolosaxton.com/** (dominio definido en
-`docker/Caddyfile`; `paolosaxton.com` redirige al `www`).
+así que la app se sirve en **https://www.paolosaxton.com/bingomusical/** (ruta definida en
+`docker/Caddyfile`; `paolosaxton.com` redirige al `www`, y la raíz del dominio queda libre
+para tu web: mientras no haya nada, redirige al bingo).
 
 1. **DNS**: en el panel del dominio crea dos registros A apuntando a la IP del servidor:
 
@@ -131,17 +132,21 @@ así que la app se sirve en **https://www.paolosaxton.com/** (dominio definido e
    docker compose --profile https up -d --build
    ```
 
-3. **Spotify**: añade `https://www.paolosaxton.com/` como Redirect URI en el panel de tu app.
+3. **Spotify**: añade `https://www.paolosaxton.com/bingomusical/` como Redirect URI en el
+   panel de tu app (con la barra final).
 
-### Detrás de tu propio proxy inverso
+### Detrás de tu propio servidor web
 
-Si ya tienes nginx, Traefik o similar ocupando los puertos 80/443:
+Si `www.paolosaxton.com` ya lo sirve un nginx o Apache en el servidor (puertos 80/443
+ocupados), arranca solo la app:
 
 ```bash
 docker compose up -d --build     # publica la app en http://127.0.0.1:8080
 ```
 
-y apunta tu proxy a ese puerto (`APP_PORT` en `.env` lo cambia).
+y añade a tu sitio la ruta `/bingomusical/` apuntando a ese puerto. En
+`deploy/nginx-site.example.conf` tienes el bloque para nginx y el equivalente para Apache.
+`APP_PORT` en `.env` cambia el puerto.
 
 ### Despliegue automático desde GitHub
 

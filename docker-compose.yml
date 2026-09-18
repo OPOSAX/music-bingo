@@ -3,7 +3,7 @@
 #   Producción (HTTP en el puerto APP_PORT, detrás de tu propio proxy):
 #     docker compose up -d --build
 #
-#   Producción con HTTPS automático (Caddy + Let's Encrypt para www.paolosaxton.com,
+#   Producción con HTTPS automático (Caddy + Let's Encrypt, https://www.paolosaxton.com/bingomusical/,
 #   ver docker/Caddyfile; necesita los puertos 80/443 libres en el servidor):
 #     docker compose --profile https up -d --build
 #

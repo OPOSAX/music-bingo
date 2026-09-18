@@ -148,28 +148,26 @@ y añade a tu sitio la ruta `/bingomusical/` apuntando a ese puerto. En
 `deploy/nginx-site.example.conf` tienes el bloque para nginx y el equivalente para Apache.
 `APP_PORT` en `.env` cambia el puerto.
 
-### Despliegue automático desde GitHub
+### Despliegue automático desde GitHub (sin tocar el servidor)
 
-`.github/workflows/deploy.yml` se conecta por SSH al servidor en cada push a `main` y ejecuta
-`git pull` + `docker compose up -d --build`. Para activarlo, en el repositorio ve a
-**Settings → Secrets and variables → Actions** y crea:
+`.github/workflows/deploy.yml` se conecta por SSH al servidor y ejecuta `deploy/setup-server.sh`,
+que instala Docker si falta, clona o actualiza el repositorio y arranca los contenedores.
+Se lanza en cada push a `main` y también a mano desde **Actions → Desplegar en el servidor →
+Run workflow**. Para activarlo, en el repositorio ve a **Settings → Secrets and variables →
+Actions → New repository secret** y crea:
 
-| Tipo     | Nombre           | Valor                                                    |
-| -------- | ---------------- | -------------------------------------------------------- |
-| Secret   | `DEPLOY_HOST`    | IP o dominio del servidor                                |
-| Secret   | `DEPLOY_USER`    | usuario SSH (con permiso para usar Docker)               |
-| Secret   | `DEPLOY_SSH_KEY` | clave privada SSH dedicada al despliegue                 |
-| Secret   | `DEPLOY_PATH`    | ruta del clon en el servidor, p. ej. `/opt/music-bingo`  |
-| Variable | `DEPLOY_ENABLED` | `true`                                                   |
-| Variable | `DEPLOY_PROFILE` | `https` si usas Caddy; vacío si usas tu propio proxy     |
+| Secreto           | Valor                                                                 |
+| ----------------- | --------------------------------------------------------------------- |
+| `DEPLOY_HOST`     | `158.69.117.161`                                                      |
+| `DEPLOY_USER`     | `root` (o el usuario que te dio OVH, p. ej. `ubuntu` o `debian`)      |
+| `DEPLOY_PASSWORD` | la contraseña SSH de ese usuario (la que OVH envió por correo)        |
+| `ACME_EMAIL`      | tu correo, para los avisos de Let's Encrypt (opcional)                |
 
-Para el servidor OVH: `DEPLOY_HOST=158.69.117.161`, `DEPLOY_PATH=/opt/music-bingo`,
-`DEPLOY_PROFILE=https`.
-
-Genera la clave con `ssh-keygen -t ed25519 -f deploy_key -N ""`, añade `deploy_key.pub` a
-`~/.ssh/authorized_keys` del usuario en el servidor y guarda el contenido de `deploy_key`
-como secreto. La CI (`.github/workflows/ci.yml`) además construye la imagen y comprueba que
-responde en cada push.
+Si prefieres clave en lugar de contraseña, guarda la clave privada en `DEPLOY_SSH_KEY`
+(y su pública en `~/.ssh/authorized_keys` del servidor). La variable opcional
+`DEPLOY_PROFILE` (pestaña *Variables*) permite usar `auto` o vacío en lugar de `https`.
+La CI (`.github/workflows/ci.yml`) además construye la imagen y comprueba que responde
+en cada push.
 
 ### GitHub Pages (alternativa sin servidor)
 

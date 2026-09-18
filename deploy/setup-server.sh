@@ -29,6 +29,11 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
+# 0. Utilidades básicas
+for tool in curl git; do
+  command -v "$tool" >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq "$tool"; }
+done
+
 # 1. Docker
 if ! command -v docker >/dev/null 2>&1; then
   log "Instalando Docker"
@@ -47,7 +52,6 @@ if [ -d "$APP_DIR/.git" ]; then
   git -C "$APP_DIR" reset --hard "origin/$BRANCH"
 else
   log "Clonando el repositorio en $APP_DIR"
-  command -v git >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq git; }
   git clone --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
 fi
 cd "$APP_DIR"
@@ -57,7 +61,7 @@ if [ ! -f .env ]; then
   log "Creando .env"
   email="${ACME_EMAIL:-}"
   if [ -z "$email" ] && [ -t 0 ]; then
-    read -r -p "Correo para los avisos de Let's Encrypt: " email
+    read -r -p "Correo para los avisos de Let's Encrypt (opcional): " email
   fi
   cp .env.example .env
   sed -i "s/^ACME_EMAIL=.*/ACME_EMAIL=${email}/" .env

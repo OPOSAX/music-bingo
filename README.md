@@ -170,8 +170,10 @@ en cada push.
 
 ### GitHub Pages (alternativa sin servidor)
 
-Al ser un sitio estático, también se puede publicar en GitHub Pages con
-`.github/workflows/pages.yml` (activa Pages con origen *GitHub Actions*).
+Al ser un sitio estático, también se publica en GitHub Pages con `.github/workflows/pages.yml`
+en cada push a `main` (el workflow activa Pages solo la primera vez). Queda en
+`https://oposax.github.io/music-bingo/`; registra esa URL como Redirect URI en Spotify para
+usarla.
 
 ## Estructura
 

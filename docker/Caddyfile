@@ -1,0 +1,10 @@
+# Proxy inverso con HTTPS automático (Let's Encrypt).
+# DOMAIN y ACME_EMAIL se leen de las variables de entorno del contenedor (fichero .env).
+{
+    email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+    encode gzip
+    reverse_proxy app:80
+}

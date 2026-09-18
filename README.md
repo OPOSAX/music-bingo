@@ -32,7 +32,7 @@ dependencias en tiempo de ejecución**. Solo hace falta un servidor de archivos 
 ## Requisitos
 
 - Cuenta **Spotify Premium** para el anfitrión (los jugadores no necesitan nada).
-- Node.js 18 o superior (solo para compilar y servir en desarrollo).
+- Docker (o Node.js 18+ si prefieres ejecutarlo sin contenedor).
 - Navegador de escritorio con soporte del Web Playback SDK (Chrome, Edge, Firefox o Safari).
 
 ## Puesta en marcha
@@ -50,14 +50,21 @@ dependencias en tiempo de ejecución**. Solo hace falta un servidor de archivos 
 > en **User Management** del panel. Añade ahí tu propia cuenta Premium. Los jugadores no
 > inician sesión, así que no hace falta añadirlos.
 
-### 2. Compila y arranca
+### 2. Arranca con Docker (recomendado)
+
+```bash
+docker compose --profile dev up
+```
+
+Abre <http://127.0.0.1:8888/>, pega el Client ID y pulsa **Conectar con Spotify**.
+El contenedor de desarrollo instala las dependencias, recompila al guardar y sirve `public/`.
+
+Sin Docker también funciona (necesita Node.js 18+):
 
 ```bash
 npm install
 npm run dev
 ```
-
-Abre <http://127.0.0.1:8888/>, pega el Client ID y pulsa **Conectar con Spotify**.
 
 Otros comandos:
 
@@ -88,12 +95,60 @@ Variables opcionales: `PORT` (por defecto 8888) y `HOST` (por defecto `127.0.0.1
    línea o bingo, escribe su número de tarjeta en **Comprobar una tarjeta** y la app te
    dice si es válida según las canciones que han sonado de verdad.
 
-## Despliegue
+## Despliegue en un servidor (OVH, VPS, etc.)
 
-Es un sitio estático: sube el contenido de `public/` (tras `npm run build`) a cualquier
-hosting con HTTPS y registra esa URL como Redirect URI en el panel de Spotify.
-El repositorio incluye un workflow de **GitHub Pages** (`.github/workflows/pages.yml`)
-que publica automáticamente al hacer push a `main` (activa Pages con origen *GitHub Actions*).
+La imagen de producción (`Dockerfile`) compila el proyecto, ejecuta las pruebas y sirve la
+app con nginx. Todo se orquesta con `docker-compose.yml`.
+
+### Con HTTPS automático (Caddy + Let's Encrypt)
+
+Spotify exige `https://` en el Redirect URI para cualquier host que no sea `127.0.0.1`,
+así que necesitas un dominio apuntando al servidor. En el servidor:
+
+```bash
+git clone https://github.com/OPOSAX/music-bingo.git /opt/music-bingo
+cd /opt/music-bingo
+cp .env.example .env        # edita DOMAIN y ACME_EMAIL (obligatorio para este perfil)
+docker compose --profile https up -d --build
+```
+
+Caddy obtiene el certificado solo. Añade `https://TU-DOMINIO/` como Redirect URI en el panel
+de Spotify y listo.
+
+### Detrás de tu propio proxy inverso
+
+Si ya tienes nginx, Traefik o similar ocupando los puertos 80/443:
+
+```bash
+docker compose up -d --build     # publica la app en http://127.0.0.1:8080
+```
+
+y apunta tu proxy a ese puerto (`APP_PORT` en `.env` lo cambia).
+
+### Despliegue automático desde GitHub
+
+`.github/workflows/deploy.yml` se conecta por SSH al servidor en cada push a `main` y ejecuta
+`git pull` + `docker compose up -d --build`. Para activarlo, en el repositorio ve a
+**Settings → Secrets and variables → Actions** y crea:
+
+| Tipo     | Nombre           | Valor                                                    |
+| -------- | ---------------- | -------------------------------------------------------- |
+| Secret   | `DEPLOY_HOST`    | IP o dominio del servidor                                |
+| Secret   | `DEPLOY_USER`    | usuario SSH (con permiso para usar Docker)               |
+| Secret   | `DEPLOY_SSH_KEY` | clave privada SSH dedicada al despliegue                 |
+| Secret   | `DEPLOY_PATH`    | ruta del clon en el servidor, p. ej. `/opt/music-bingo`  |
+| Variable | `DEPLOY_ENABLED` | `true`                                                   |
+| Variable | `DEPLOY_PROFILE` | `https` si usas Caddy; vacío si usas tu propio proxy     |
+
+Genera la clave con `ssh-keygen -t ed25519 -f deploy_key -N ""`, añade `deploy_key.pub` a
+`~/.ssh/authorized_keys` del usuario en el servidor y guarda el contenido de `deploy_key`
+como secreto. La CI (`.github/workflows/ci.yml`) además construye la imagen y comprueba que
+responde en cada push.
+
+### GitHub Pages (alternativa sin servidor)
+
+Al ser un sitio estático, también se puede publicar en GitHub Pages con
+`.github/workflows/pages.yml` (activa Pages con origen *GitHub Actions*).
 
 ## Estructura
 
@@ -112,6 +167,9 @@ src/
   views/          Pantallas: inicio, configuración, anfitrión, tarjetas, jugador
 tests/            Pruebas con node:test
 serve.mjs         Servidor estático de desarrollo
+Dockerfile        Imagen de producción (compila + nginx)
+docker-compose.yml Perfiles: por defecto (app), https (Caddy), dev
+docker/           nginx.conf y Caddyfile
 ```
 
 ## Limitaciones conocidas

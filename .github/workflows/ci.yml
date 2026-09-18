@@ -16,3 +16,21 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir la imagen
+        run: docker build -t music-bingo:ci .
+      - name: Arrancar y comprobar que responde
+        run: |
+          docker run -d --rm --name bingo -p 8080:80 music-bingo:ci
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8080/ | grep -q "Bingo musical"; then echo OK; break; fi
+            sleep 1
+            [ "$i" = 20 ] && { docker logs bingo; exit 1; }
+          done
+          curl -fsS http://127.0.0.1:8080/js/main.js >/dev/null
+          curl -fsS http://127.0.0.1:8080/cualquier/ruta | grep -q "Bingo musical"
+          docker stop bingo

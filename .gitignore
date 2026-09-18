@@ -3,3 +3,4 @@ public/js/
 .test-out/
 *.log
 .DS_Store
+.env

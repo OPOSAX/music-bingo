@@ -64,8 +64,9 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`Bingo musical: http://${HOST}:${PORT}/`);
-  console.log(`Redirect URI para el panel de Spotify: http://${HOST}:${PORT}/`);
+  const shownHost = HOST === '0.0.0.0' || HOST === '::' ? '127.0.0.1' : HOST;
+  console.log(`Bingo musical: http://${shownHost}:${PORT}/`);
+  console.log(`Redirect URI para el panel de Spotify: http://${shownHost}:${PORT}/`);
 });
 
 if (process.argv.includes('--watch')) {

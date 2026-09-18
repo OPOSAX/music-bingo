@@ -1,0 +1,57 @@
+# Bingo musical · Docker Compose
+#
+#   Producción (HTTP en el puerto APP_PORT, detrás de tu propio proxy):
+#     docker compose up -d --build
+#
+#   Producción con HTTPS automático (Caddy + Let's Encrypt, https://www.paolosaxton.com/bingomusical/,
+#   ver docker/Caddyfile; necesita los puertos 80/443 libres en el servidor):
+#     docker compose --profile https up -d --build
+#
+#   Desarrollo (recompila al guardar, http://127.0.0.1:8888/):
+#     docker compose --profile dev up
+
+services:
+  app:
+    build:
+      context: .
+      target: runtime
+    image: music-bingo:latest
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:80"
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  dev:
+    image: node:22-alpine
+    profiles: ["dev"]
+    working_dir: /app
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8888
+    ports:
+      - "127.0.0.1:8888:8888"
+    volumes:
+      - .:/app
+      - dev_node_modules:/app/node_modules
+    command: sh -c "npm ci --no-audit --no-fund && npm run dev"
+
+volumes:
+  caddy_data:
+  caddy_config:
+  dev_node_modules:

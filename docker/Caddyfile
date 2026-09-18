@@ -1,0 +1,30 @@
+# Proxy inverso con HTTPS automático (Let's Encrypt).
+# La app se sirve en https://www.paolosaxton.com/bingomusical/
+# ACME_EMAIL se lee del fichero .env (avisos de caducidad de certificados).
+
+{
+    email {$ACME_EMAIL}
+}
+
+www.paolosaxton.com {
+    encode gzip
+
+    # /bingomusical -> /bingomusical/ (la app necesita la barra final)
+    redir /bingomusical /bingomusical/ permanent
+
+    # La app: se quita el prefijo y se pasa al contenedor nginx.
+    handle_path /bingomusical/* {
+        reverse_proxy app:80
+    }
+
+    # Resto del sitio. De momento redirige al bingo; sustituye este bloque por tu web,
+    # por ejemplo:  handle { root * /srv/www ; file_server }
+    handle {
+        redir * /bingomusical/ temporary
+    }
+}
+
+# El dominio sin "www" redirige al principal.
+paolosaxton.com {
+    redir https://www.paolosaxton.com{uri} permanent
+}

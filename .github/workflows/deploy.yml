@@ -1,0 +1,78 @@
+name: Desplegar en el servidor
+
+# Instala o actualiza la app en el servidor por SSH. Se ejecuta en cada push a main y
+# también a mano desde la pestaña Actions ("Run workflow"). Si no hay secretos, no hace nada.
+#
+# Secretos (Settings → Secrets and variables → Actions → New repository secret):
+#   DEPLOY_HOST       IP o dominio del servidor, p. ej. 158.69.117.161
+#   DEPLOY_USER       usuario SSH, p. ej. root (o ubuntu / debian en algunas imágenes de OVH)
+#   DEPLOY_PASSWORD   contraseña SSH de ese usuario        (opción A)
+#   DEPLOY_SSH_KEY    clave privada SSH en formato OpenSSH (opción B, en lugar de la contraseña)
+#   ACME_EMAIL        correo para los avisos de Let's Encrypt (opcional)
+# Variable opcional (Settings → Secrets and variables → Actions → Variables):
+#   DEPLOY_PROFILE    "https" (Caddy, por defecto), "" (solo la app en 127.0.0.1:8080) o "auto"
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      HOST: ${{ secrets.DEPLOY_HOST }}
+      USER: ${{ secrets.DEPLOY_USER }}
+      PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
+      SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
+      PROFILE: ${{ vars.DEPLOY_PROFILE || 'https' }}
+      BRANCH: ${{ github.ref_name }}
+    steps:
+      - name: Comprobar configuración
+        id: config
+        run: |
+          if [ -z "$HOST" ] || [ -z "$USER" ]; then
+            echo "Faltan los secretos DEPLOY_HOST o DEPLOY_USER: no se despliega."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "$PASSWORD" ] && [ -z "$SSH_KEY" ]; then
+            echo "Falta DEPLOY_PASSWORD o DEPLOY_SSH_KEY: no se despliega."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Preparar acceso SSH
+        if: steps.config.outputs.enabled == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          if [ -n "$SSH_KEY" ]; then
+            printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+            chmod 600 ~/.ssh/deploy_key
+            echo "ssh -i ~/.ssh/deploy_key -o BatchMode=yes" > ~/.ssh_cmd
+          else
+            sudo apt-get update -qq && sudo apt-get install -y -qq sshpass >/dev/null
+            echo "sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no" > ~/.ssh_cmd
+          fi
+
+      - name: Instalar o actualizar la app en el servidor
+        if: steps.config.outputs.enabled == 'true'
+        env:
+          SSHPASS: ${{ secrets.DEPLOY_PASSWORD }}
+        run: |
+          SSH="$(cat ~/.ssh_cmd) -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new"
+          SCRIPT_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/deploy/setup-server.sh"
+          RUN="curl -fsSL '$SCRIPT_URL' -o /tmp/setup-server.sh && env ACME_EMAIL='$ACME_EMAIL' PROFILE='$PROFILE' BRANCH='$BRANCH' bash /tmp/setup-server.sh"
+          if [ "$USER" = "root" ]; then
+            $SSH "$USER@$HOST" "$RUN" < /dev/null
+          elif [ -n "$PASSWORD" ]; then
+            # La contraseña de sudo viaja por la entrada estándar, no en la línea de comandos.
+            printf '%s\n' "$PASSWORD" | $SSH "$USER@$HOST" "sudo -S -p '' bash -c \"$RUN\""
+          else
+            $SSH "$USER@$HOST" "sudo bash -c \"$RUN\"" < /dev/null
+          fi

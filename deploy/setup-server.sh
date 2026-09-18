@@ -10,8 +10,10 @@
 #   REPO_URL    repositorio a clonar (por defecto https://github.com/OPOSAX/music-bingo.git)
 #   BRANCH      rama a desplegar (por defecto main)
 #   ACME_EMAIL  correo para Let's Encrypt (se pide si no hay .env)
-#   PROFILE     "https" (Caddy en 80/443), "" (solo la app en 127.0.0.1:8080, detrás de tu
-#               propio nginx/Apache) o "auto" (por defecto: https si 80/443 están libres)
+#   PROFILE     "auto" (por defecto): Caddy si los puertos 80/443 están libres; si ya hay un
+#               nginx o Apache sirviendo otros sitios, añade a ese servidor el sitio
+#               www.paolosaxton.com con la ruta /bingomusical/ y pide el certificado con certbot.
+#               "https": fuerza Caddy.  "": solo la app en 127.0.0.1:8080 (configura tú el proxy).
 
 set -euo pipefail
 
@@ -84,14 +86,28 @@ if [ -n "$server_ip" ] && [ "$dns_ip" != "$server_ip" ]; then
 fi
 
 # 6. ¿Hay ya un servidor web en los puertos 80/443?
-if [ "$PROFILE" = "auto" ]; then
-  PROFILE="https"
-  busy="$(ss -Hltn 'sport = :80 or sport = :443' 2>/dev/null | grep -v docker || true)"
-  if [ -n "$busy" ] && ! docker compose ps --services --status running 2>/dev/null | grep -q caddy; then
-    printf '\n\033[1;33mAVISO:\033[0m ya hay algo escuchando en los puertos 80/443:\n%s\n' "$busy"
-    echo "Se arranca solo la app en 127.0.0.1:8080. Configura tu servidor web con deploy/nginx-site.example.conf"
-    PROFILE=""
+listener="$(ss -Hltnp 'sport = :80 or sport = :443' 2>/dev/null || true)"
+web_server="none"
+if [ -n "$listener" ]; then
+  if docker compose ps --services --status running 2>/dev/null | grep -q '^caddy$'; then
+    web_server="own-caddy"   # nuestro propio Caddy de una ejecución anterior
+  elif echo "$listener" | grep -q 'nginx'; then web_server="nginx"
+  elif echo "$listener" | grep -qE 'apache2|httpd'; then web_server="apache"
+  elif echo "$listener" | grep -q 'docker'; then web_server="docker"
+  else web_server="other"
   fi
+fi
+
+if [ "$PROFILE" = "auto" ]; then
+  case "$web_server" in
+    none|own-caddy) PROFILE="https" ;;
+    *) PROFILE="" ;;
+  esac
+fi
+if [ "$PROFILE" = "https" ] && [ "$web_server" != "none" ] && [ "$web_server" != "own-caddy" ]; then
+  printf '\n\033[1;31mERROR:\033[0m no se puede usar Caddy: ya hay algo en los puertos 80/443 (%s).\n' "$web_server" >&2
+  echo "$listener" >&2
+  exit 1
 fi
 
 # 7. Arrancar
@@ -102,6 +118,118 @@ else
   docker compose up -d --build --remove-orphans
 fi
 docker image prune -f >/dev/null
+
+# 8. Si hay un nginx o Apache, añadir el sitio www.paolosaxton.com -> app
+APP_PORT="$(grep -s '^APP_PORT=' .env | cut -d= -f2- || true)"
+APP_PORT="$APP_PORT"
+if [ -d /etc/nginx/sites-available ]; then
+  NGINX_SITE="/etc/nginx/sites-available/paolosaxton.com.conf"
+else
+  NGINX_SITE="/etc/nginx/conf.d/paolosaxton.com.conf"
+fi
+APACHE_SITE="/etc/apache2/sites-available/paolosaxton.com.conf"
+
+certbot_args() {
+  if [ -n "$(grep -s '^ACME_EMAIL=' .env | cut -d= -f2-)" ]; then
+    echo "--non-interactive --agree-tos -m $(grep '^ACME_EMAIL=' .env | cut -d= -f2-)"
+  else
+    echo "--non-interactive --agree-tos --register-unsafely-without-email"
+  fi
+}
+
+configure_nginx() {
+  log "Configurando el sitio en el nginx existente"
+  if [ ! -f "$NGINX_SITE" ]; then
+    cat > "$NGINX_SITE" <<NGINX
+# Bingo musical (generado por deploy/setup-server.sh). La app corre en 127.0.0.1:$APP_PORT.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $DOMAIN paolosaxton.com;
+
+    location = /bingomusical {
+        return 301 /bingomusical/;
+    }
+
+    location /bingomusical/ {
+        proxy_pass http://127.0.0.1:$APP_PORT/;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Raíz del dominio: de momento va al bingo. Sustituye este bloque por tu web.
+    location / {
+        return 302 /bingomusical/;
+    }
+}
+NGINX
+    if [ -d /etc/nginx/sites-enabled ]; then
+      ln -sf "$NGINX_SITE" /etc/nginx/sites-enabled/paolosaxton.com.conf
+    fi
+    if ! nginx -t; then
+      rm -f /etc/nginx/sites-enabled/paolosaxton.com.conf "$NGINX_SITE"
+      echo "La configuración de nginx no valida; se ha retirado el sitio nuevo sin tocar nada más." >&2
+      exit 1
+    fi
+    systemctl reload nginx
+  fi
+  if ! grep -q 'listen 443' "$NGINX_SITE"; then
+    log "Pidiendo el certificado HTTPS con certbot"
+    command -v certbot >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq certbot python3-certbot-nginx; }
+    dpkg -s python3-certbot-nginx >/dev/null 2>&1 || apt-get install -y -qq python3-certbot-nginx
+    # shellcheck disable=SC2046
+    certbot --nginx -d "$DOMAIN" -d paolosaxton.com --redirect $(certbot_args)
+  fi
+}
+
+configure_apache() {
+  log "Configurando el sitio en el Apache existente"
+  a2enmod -q proxy proxy_http headers rewrite >/dev/null
+  if [ ! -f "$APACHE_SITE" ]; then
+    cat > "$APACHE_SITE" <<APACHE
+# Bingo musical (generado por deploy/setup-server.sh). La app corre en 127.0.0.1:$APP_PORT.
+<VirtualHost *:80>
+    ServerName $DOMAIN
+    ServerAlias paolosaxton.com
+
+    RedirectMatch 301 ^/bingomusical$ /bingomusical/
+    ProxyPreserveHost On
+    ProxyPass        /bingomusical/ http://127.0.0.1:$APP_PORT/
+    ProxyPassReverse /bingomusical/ http://127.0.0.1:$APP_PORT/
+
+    # Raíz del dominio: de momento va al bingo. Sustituye esta línea por tu web.
+    RedirectMatch 302 ^/$ /bingomusical/
+</VirtualHost>
+APACHE
+    a2ensite -q paolosaxton.com.conf >/dev/null
+    if ! apachectl configtest; then
+      a2dissite -q paolosaxton.com.conf >/dev/null; rm -f "$APACHE_SITE"
+      echo "La configuración de Apache no valida; se ha retirado el sitio nuevo sin tocar nada más." >&2
+      exit 1
+    fi
+    systemctl reload apache2
+  fi
+  if [ ! -f "/etc/apache2/sites-available/paolosaxton.com-le-ssl.conf" ]; then
+    log "Pidiendo el certificado HTTPS con certbot"
+    command -v certbot >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq certbot python3-certbot-apache; }
+    dpkg -s python3-certbot-apache >/dev/null 2>&1 || apt-get install -y -qq python3-certbot-apache
+    # shellcheck disable=SC2046
+    certbot --apache -d "$DOMAIN" -d paolosaxton.com --redirect $(certbot_args)
+  fi
+}
+
+case "$web_server" in
+  nginx) configure_nginx ;;
+  apache) configure_apache ;;
+  docker|other)
+    printf '\n\033[1;33mAVISO:\033[0m los puertos 80/443 los ocupa un servidor que no sé configurar automáticamente:\n%s\n' "$listener"
+    echo "La app está en 127.0.0.1:$APP_PORT. Añade en ese servidor el sitio $DOMAIN con la ruta"
+    echo "/bingomusical/ -> http://127.0.0.1:$APP_PORT/ (ejemplo en deploy/nginx-site.example.conf)."
+    ;;
+esac
 
 log "Listo. La app estará en $APP_URL en cuanto el DNS y el certificado estén activos."
 echo "Registra $APP_URL como Redirect URI en https://developer.spotify.com/dashboard"

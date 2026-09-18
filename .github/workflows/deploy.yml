@@ -10,7 +10,8 @@ name: Desplegar en el servidor
 #   DEPLOY_SSH_KEY    clave privada SSH en formato OpenSSH (opción B, en lugar de la contraseña)
 #   ACME_EMAIL        correo para los avisos de Let's Encrypt (opcional)
 # Variable opcional (Settings → Secrets and variables → Actions → Variables):
-#   DEPLOY_PROFILE    "https" (Caddy, por defecto), "" (solo la app en 127.0.0.1:8080) o "auto"
+#   DEPLOY_PROFILE    "auto" (por defecto: Caddy si 80/443 están libres; si hay nginx/Apache, se
+#                     añade el sitio ahí), "https" (fuerza Caddy) o "" (solo la app en 127.0.0.1:8080)
 
 on:
   push:
@@ -30,7 +31,7 @@ jobs:
       PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
       SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
       ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
-      PROFILE: ${{ vars.DEPLOY_PROFILE || 'https' }}
+      PROFILE: ${{ vars.DEPLOY_PROFILE || 'auto' }}
       BRANCH: ${{ github.ref_name }}
     steps:
       - name: Comprobar configuración

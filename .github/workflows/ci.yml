@@ -59,7 +59,7 @@ jobs:
         run: docker build -f server/Dockerfile -t music-bingo-concert:ci .
       - name: Arrancar y comprobar health y app
         run: |
-          docker run -d --name concert -p 3010:3010 -e CONCERT_DJ_TOKEN=ci -e BTALK_ANNOUNCED_IP=127.0.0.1 -e MEDIASOUP_WORKERS=1 music-bingo-concert:ci
+          docker run -d --name concert -p 3010:3010 -e CONCERT_DJ_TOKEN=ci -e BTALK_ANNOUNCED_IP=127.0.0.1 -e MEDIASOUP_WORKERS=1 -e MEDIASOUP_LOG_LEVEL=debug -e DEBUG='mediasoup*' music-bingo-concert:ci
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:3010/health | grep -q '"concert":true'; then echo OK; break; fi
             sleep 1

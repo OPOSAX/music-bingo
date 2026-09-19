@@ -18,9 +18,9 @@ const step = (name, okFlag) => {
   if (!okFlag) throw new Error(`Fallo: ${name}`);
 };
 
-const connect = (auth) =>
+const connect = (auth, target = url) =>
   new Promise((resolve, reject) => {
-    const socket = io(url, { transports: ['websocket'], auth, reconnection: false });
+    const socket = io(target, { transports: ['websocket'], auth, reconnection: false });
     socket.once('connect', () => resolve(socket));
     socket.once('connect_error', reject);
   });
@@ -100,7 +100,7 @@ try {
   intruder.disconnect();
   await new Promise((r) => setTimeout(r, 400));
   const disabled = await startServer({ port: 0, env: { CONCERT_MODE: 'false', CONCERT_DJ_TOKEN: 'x', MEDIASOUP_WORKERS: '1', NODE_ENV: 'production' } });
-  const s2 = await connect({ roomId: 'off' });
+  const s2 = await connect({ roomId: 'off' }, `http://127.0.0.1:${disabled.port}`);
   const joinOff = await request(s2, 'concert:join', { roomId: 'off', meta: { name: 'X' } });
   step('CONCERT_MODE=false rechaza join', joinOff.ok === false && joinOff.code === 'disabled');
   s2.disconnect();

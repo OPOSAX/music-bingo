@@ -56,7 +56,7 @@ module.exports = {
     mediasoup: {
         numWorkers,
         worker: {
-            logLevel: 'error',
+            logLevel: process.env.MEDIASOUP_LOG_LEVEL || 'warn',
             logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'sctp'],
             rtcMinPort,
             rtcMaxPort,

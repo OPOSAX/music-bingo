@@ -20,6 +20,9 @@ export interface GameState {
   names?: Record<string, string>;
   /** Canal de sincronización con las tarjetas de los jugadores. */
   syncTopic?: string;
+  /** Mensaje del anfitrión visible en las tarjetas sincronizadas. */
+  message?: string;
+  messageAt?: number;
 }
 
 const GAME_KEY = 'musicbingo:game';

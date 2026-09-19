@@ -42,6 +42,7 @@ export async function renderPlayerCard(root: HTMLElement, params: URLSearchParam
 
   const banner = h('div', { class: 'banner' });
   const live = h('div', { class: 'live' });
+  const feed = h('div', { class: 'feed' });
   const gridHost = h('div', { class: 'player-grid' });
   root.appendChild(
     h(
@@ -53,6 +54,7 @@ export async function renderPlayerCard(root: HTMLElement, params: URLSearchParam
   root.appendChild(banner);
   root.appendChild(live);
   root.appendChild(gridHost);
+  root.appendChild(feed);
   root.appendChild(h('p', { class: 'muted small center' }, shared.y ? 'Las canciones que van sonando se marcan solas; también puedes tocar una casilla. Cuando completes una línea o la tarjeta, canta ¡BINGO! y di tu código al anfitrión.' : 'Toca una casilla cuando suene esa canción. Cuando completes una línea o la tarjeta, canta ¡BINGO! y di tu código al anfitrión.'));
   root.appendChild(
     h('div', { class: 'actions center' }, button('Borrar marcas', () => {
@@ -75,6 +77,16 @@ export async function renderPlayerCard(root: HTMLElement, params: URLSearchParam
     const n = syncState.called.length;
     const nowText = syncState.now ? `${syncState.now.name} — ${syncState.now.artists}` : n > 0 ? `Canción nº ${n} (título sin revelar)` : 'Todavía no ha sonado ninguna canción';
     live.appendChild(h('p', { class: 'live-now' }, h('span', { class: 'muted small' }, `${online === false ? '⚠️ Sin conexión · ' : '🔊 En directo · '}${n} cantadas`), h('br'), nowText));
+    if (syncState.msg?.text) live.appendChild(h('p', { class: 'live-msg' }, '💬 ', syncState.msg.text));
+
+    clear(feed);
+    const log = syncState.log ?? [];
+    if (log.length) {
+      feed.appendChild(h('h3', null, 'Canciones cantadas'));
+      const list = h('ol', { class: 'feed-list' });
+      for (const [num, name, artists] of [...log].reverse()) list.appendChild(h('li', null, h('span', { class: 'feed-n' }, `${num}.`), h('strong', null, name), h('span', { class: 'muted' }, ` — ${artists}`)));
+      feed.appendChild(list);
+    }
   }
 
   function render(): void {

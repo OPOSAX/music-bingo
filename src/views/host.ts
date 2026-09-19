@@ -146,6 +146,15 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     saveGame(game);
   }
   const syncStatus = h('span', { class: 'muted small' }, 'Sin publicar todavía.');
+  const messageInput = h('input', { class: 'input', type: 'text', placeholder: 'Mensaje para todos los jugadores (p. ej. "¡Pausa de 5 minutos!")', maxLength: 200, value: game.message ?? '' });
+  const messageForm = h('form', { class: 'row' }, messageInput, h('button', { class: 'btn', type: 'submit' }, 'Enviar'), button('Borrar', () => { messageInput.value = ''; game.message = ''; game.messageAt = Date.now(); persist(); }, 'btn btn-link'));
+  messageForm.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    game.message = messageInput.value.trim();
+    game.messageAt = Date.now();
+    persist();
+    toast(game.message ? 'Mensaje enviado a las tarjetas' : 'Mensaje borrado', 'success');
+  });
   const autoMarkSelect = h('select', { class: 'input' }, h('option', { value: 'played' }, 'Al sonar la canción'), h('option', { value: 'revealed' }, 'Al revelar el título'), h('option', { value: 'off' }, 'Nunca (marcan a mano)'));
   autoMarkSelect.value = game.config.autoMark ?? 'played';
   autoMarkSelect.addEventListener('change', () => {
@@ -159,6 +168,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       h('h2', null, 'Tarjetas escaneadas'),
       h('p', { class: 'muted small' }, 'Las tarjetas abiertas desde el QR reciben en directo lo que va sonando y se marcan solas. Las tarjetas repartidas antes de crear esta partida no se sincronizan.'),
       h('div', { class: 'fields' }, h('label', { class: 'field' }, h('span', null, 'Marcado automático'), autoMarkSelect)),
+      messageForm,
       h('p', null, h('strong', null, 'Estado: '), syncStatus),
       h('p', { class: 'muted small' }, `Canal: ${relayBase()}`),
     ),

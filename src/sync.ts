@@ -19,6 +19,10 @@ export interface SyncState {
   revealed: boolean;
   /** Título y artista de la última canción, solo si está revelada. */
   now?: { name: string; artists: string } | null;
+  /** Últimas canciones con el título revelado, en orden cronológico: [nº, título, artista]. */
+  log?: [number, string, string][];
+  /** Mensaje del anfitrión a los jugadores. */
+  msg?: { text: string; t: number } | null;
   autoMark: AutoMark;
   /** Momento de publicación (ms). */
   t: number;
@@ -45,15 +49,26 @@ export function newTopic(seed: string): string {
   return `mbingo-${seed.toLowerCase()}-${hex}`;
 }
 
+/** Cuántas canciones reveladas se envían a los jugadores (el mensaje debe ser pequeño). */
+export const LOG_LIMIT = 12;
+
 export function buildSyncState(game: GameState): SyncState {
   const called = game.order.slice(0, game.position);
   const last = called.length ? game.tracks[called[called.length - 1] as number] : undefined;
+  const revealedCount = game.revealed ? called.length : Math.max(0, called.length - 1);
+  const log: [number, string, string][] = called.slice(Math.max(0, revealedCount - LOG_LIMIT), revealedCount).map((idx, i, arr) => {
+    const track = game.tracks[idx];
+    const n = revealedCount - arr.length + i + 1;
+    return [n, track?.name ?? '', track?.artists ?? ''];
+  });
   return {
     v: 1,
     seed: game.config.seed,
     called,
     revealed: game.revealed,
     now: game.revealed && last ? { name: last.name, artists: last.artists } : null,
+    log,
+    msg: game.message ? { text: game.message, t: game.messageAt ?? 0 } : null,
     autoMark: game.config.autoMark ?? 'played',
     t: Date.now(),
   };
@@ -69,6 +84,8 @@ export function parseSyncState(text: string): SyncState | null {
       called: data.called.filter((n): n is number => Number.isInteger(n)),
       revealed: data.revealed === true,
       now: data.now ?? null,
+      log: Array.isArray(data.log) ? data.log.filter((e): e is [number, string, string] => Array.isArray(e) && e.length === 3) : [],
+      msg: data.msg && typeof data.msg.text === 'string' ? { text: data.msg.text, t: Number(data.msg.t) || 0 } : null,
       autoMark: data.autoMark === 'revealed' || data.autoMark === 'off' ? data.autoMark : 'played',
       t: typeof data.t === 'number' ? data.t : 0,
     };

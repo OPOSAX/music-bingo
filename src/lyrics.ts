@@ -82,12 +82,33 @@ function cleanTitle(name: string): string {
   return name.replace(/\s*[-(\[].*?(remaster|version|edit|live|mix|feat\.?|ft\.?|bonus|deluxe|mono|stereo).*$/i, '').trim() || name;
 }
 
+/** Último problema de red al consultar letras (para mostrarlo en pantalla). */
+export let lastLyricsError: string | null = null;
+
 async function getJson<T>(url: string): Promise<T | null> {
   try {
-    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    // Sin cabeceras personalizadas: así la petición no necesita "preflight" CORS.
+    const res = await fetch(url);
     if (res.status === 404) return null;
-    if (!res.ok) return null;
+    if (!res.ok) {
+      lastLyricsError = `LRCLIB respondió ${res.status}`;
+      return null;
+    }
     return (await res.json()) as T;
+  } catch (err) {
+    lastLyricsError = `sin acceso a LRCLIB (${err instanceof Error ? err.message : String(err)})`;
+    return null;
+  }
+}
+
+/** Fuente alternativa con solo letra plana (lyrics.ovh). */
+async function fetchFromLyricsOvh(artist: string, title: string): Promise<Lyrics | null> {
+  try {
+    const res = await fetch(`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { lyrics?: string };
+    const plain = (data.lyrics ?? '').trim();
+    return plain ? { plain, synced: [], source: 'lyrics.ovh' } : null;
   } catch {
     return null;
   }
@@ -96,11 +117,11 @@ async function getJson<T>(url: string): Promise<T | null> {
 /** Busca la letra; devuelve null si no se encuentra. Los resultados se guardan en caché. */
 export async function fetchLyrics(query: LyricsQuery): Promise<Lyrics | null> {
   const key = `${CACHE_PREFIX}${query.id}`;
-  if (memory.has(key)) return memory.get(key) ?? null;
+  if (memory.get(key)) return memory.get(key) as Lyrics;
   try {
     const cached = localStorage.getItem(key);
-    if (cached) {
-      const parsed = JSON.parse(cached) as Lyrics | null;
+    if (cached && cached !== 'null') {
+      const parsed = JSON.parse(cached) as Lyrics;
       memory.set(key, parsed);
       return parsed;
     }
@@ -118,6 +139,7 @@ export async function fetchLyrics(query: LyricsQuery): Promise<Lyrics | null> {
   candidates.push(() => getJson<LrclibRecord[]>(`${LRCLIB}/search?${new URLSearchParams({ track_name: cleanTitle(query.name), artist_name: artist })}`));
   candidates.push(() => getJson<LrclibRecord[]>(`${LRCLIB}/search?${new URLSearchParams({ q: `${cleanTitle(query.name)} ${artist}` })}`));
 
+  lastLyricsError = null;
   let result: Lyrics | null = null;
   for (const candidate of candidates) {
     const data = await candidate();
@@ -127,12 +149,16 @@ export async function fetchLyrics(query: LyricsQuery): Promise<Lyrics | null> {
     if (best) result = fromRecord(best);
     if (result) break;
   }
+  if (!result) result = await fetchFromLyricsOvh(artist, cleanTitle(query.name));
 
-  memory.set(key, result);
-  try {
-    localStorage.setItem(key, JSON.stringify(result));
-  } catch {
-    /* almacenamiento lleno: no pasa nada */
+  // Solo se guardan en caché los aciertos: un fallo de red no debe quedarse fijo.
+  if (result) {
+    memory.set(key, result);
+    try {
+      localStorage.setItem(key, JSON.stringify(result));
+    } catch {
+      /* almacenamiento lleno: no pasa nada */
+    }
   }
   return result;
 }

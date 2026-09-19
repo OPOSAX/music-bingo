@@ -142,6 +142,11 @@ function renderPlayerAccess(): HTMLElement {
   form.addEventListener('submit', (ev) => {
     ev.preventDefault();
     const text = input.value.trim();
+    const joinMatch = text.match(/#\/join\?d=([A-Za-z0-9_-]+)/);
+    if (joinMatch) {
+      navigate(`/join?d=${joinMatch[1]}`);
+      return;
+    }
     const match = text.match(/#\/card\?d=([A-Za-z0-9_-]+)/) ?? text.match(/^([zj][A-Za-z0-9_-]+)$/);
     if (!match) {
       toast('No parece un enlace de tarjeta válido.', 'error');

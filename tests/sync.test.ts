@@ -7,7 +7,7 @@ import type { GameState } from '../src/store.js';
 const state: SyncState = { v: 1, seed: 'ABC123', called: [5, 9, 2], revealed: false, now: null, autoMark: 'played', t: 1000 };
 
 test('parseSyncState acepta estados válidos y rechaza el resto', () => {
-  assert.deepEqual(parseSyncState(JSON.stringify(state)), { ...state, log: [], msg: null, cur: null, play: null });
+  assert.deepEqual(parseSyncState(JSON.stringify(state)), { ...state, log: [], msg: null, cur: null, play: null, claims: {} });
   assert.equal(parseSyncState('no es json'), null);
   assert.equal(parseSyncState(JSON.stringify({ v: 2 })), null);
   assert.equal(parseSyncState(JSON.stringify({ v: 1, seed: 'X', called: 'nope' })), null);
@@ -53,4 +53,34 @@ test('buildSyncState incluye el historial revelado y el mensaje', () => {
   assert.deepEqual(round?.cur, { id: 't19', name: 'Tema 19', artists: 'Grupo 19', album: '', durationMs: 1000 }, 'canción en curso para la letra');
   game.config.lyrics = false;
   assert.equal(buildSyncState(game).cur, null, 'sin letras no se envía la canción en curso');
+});
+
+test('poolChunks y assemblePool reparten y recomponen la lista', async () => {
+  const { assemblePool, nextFreeIndex, parseSyncMessage, poolChunks } = await import('../src/sync.js');
+  const items = Array.from({ length: 200 }, (_, i) => [`Canción número ${i} con un título bastante largo`, `Artista ${i}`] as [string, string]);
+  const chunks = poolChunks('S', items);
+  assert.ok(chunks.length > 1, 'se trocea');
+  assert.ok(chunks.every((c) => JSON.stringify(c).length < 3400), 'cada trozo cabe en un mensaje');
+  assert.equal(chunks[0]?.from, 0);
+  assert.equal(chunks[1]?.from, chunks[0]?.items.length);
+  const map = new Map(chunks.map((c) => [c.i, c]));
+  assert.deepEqual(assemblePool(map, items.length), items);
+  map.delete(1);
+  assert.equal(assemblePool(map, items.length), null, 'falta un trozo');
+  assert.equal(poolChunks('S', []).length, 1, 'lista vacía: un trozo vacío');
+
+  const claims = { '0': { n: 'Ana', c: 'a' }, '1': { n: 'Luis', c: 'b' }, '3': { n: 'Eva', c: 'c' } };
+  assert.equal(nextFreeIndex(claims, 5, 'z'), 2);
+  assert.equal(nextFreeIndex(claims, 5, 'z', 2), 4);
+  assert.equal(nextFreeIndex(claims, 5, 'z', 4), null);
+  assert.equal(nextFreeIndex(claims, 5, 'b'), 1, 'su propia tarjeta cuenta como libre para él');
+  assert.equal(nextFreeIndex(undefined, 3, 'z'), 0);
+
+  const claim = parseSyncMessage(JSON.stringify({ k: 'claim', seed: 'S', index: 2, name: 'Ana', cid: 'a', t: 5 }));
+  assert.deepEqual(claim, { k: 'claim', seed: 'S', index: 2, name: 'Ana', cid: 'a', t: 5 });
+  assert.equal(parseSyncMessage(JSON.stringify({ k: 'claim', seed: 'S' })), null);
+  const pool = parseSyncMessage(JSON.stringify(chunks[0]));
+  assert.equal(pool?.k, 'pool');
+  const st = parseSyncMessage(JSON.stringify(state));
+  assert.equal(st?.k, 'state');
 });

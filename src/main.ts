@@ -6,6 +6,7 @@ import { currentRoute, navigate, onRouteChange, type Route } from './router.js';
 import { releaseCardSync, renderPlayerCard } from './views/card.js';
 import { renderCards } from './views/cards.js';
 import { renderDeal } from './views/deal.js';
+import { renderJoin } from './views/join.js';
 import { renderHome } from './views/home.js';
 import { releasePlayer, renderHost } from './views/host.js';
 import { renderSetup } from './views/setup.js';
@@ -14,7 +15,7 @@ const root = document.getElementById('app') as HTMLElement;
 
 async function render(route: Route): Promise<void> {
   if (route.path !== '/host') releasePlayer();
-  if (route.path !== '/card') releaseCardSync();
+  if (route.path !== '/card' && route.path !== '/join') releaseCardSync();
   try {
     switch (route.path) {
       case '/':
@@ -34,6 +35,9 @@ async function render(route: Route): Promise<void> {
         break;
       case '/deal':
         await renderDeal(root, route.params);
+        break;
+      case '/join':
+        await renderJoin(root, route.params);
         break;
       default:
         navigate('/');

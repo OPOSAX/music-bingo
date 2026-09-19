@@ -10,12 +10,16 @@ import { renderJoin } from './views/join.js';
 import { renderHome } from './views/home.js';
 import { releasePlayer, renderHost } from './views/host.js';
 import { renderSetup } from './views/setup.js';
+import { releaseDj, renderDj } from './concert/views/dj.js';
+import { releaseSing, renderSing } from './concert/views/sing.js';
 
 const root = document.getElementById('app') as HTMLElement;
 
 async function render(route: Route): Promise<void> {
   if (route.path !== '/host') releasePlayer();
   if (route.path !== '/card' && route.path !== '/join') releaseCardSync();
+  if (route.path !== '/dj') await releaseDj();
+  if (route.path !== '/sing') await releaseSing();
   try {
     switch (route.path) {
       case '/':
@@ -38,6 +42,12 @@ async function render(route: Route): Promise<void> {
         break;
       case '/join':
         await renderJoin(root, route.params);
+        break;
+      case '/sing':
+        await renderSing(root, route.params);
+        break;
+      case '/dj':
+        await renderDj(root, route.params);
         break;
       default:
         navigate('/');

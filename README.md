@@ -202,6 +202,14 @@ docker/           nginx.conf y Caddyfile (dominio www.paolosaxton.com)
 deploy/           setup-server.sh: instalación/actualización en el servidor
 ```
 
+## Biznet Crowd Mic (modo concierto)
+
+El público canta o habla desde su móvil (`#/sing`) y el DJ decide quién suena por el PA (`#/dj`):
+lista READY masiva (100–5000 personas), 1–2 micrófonos activos, cancelación de eco por referencia
+del mixer y panel técnico A/B. Funciona en modo demo sin servidor; con un servidor **Biznet_Talk**
+(mediasoup) hace el WebRTC real. Arquitectura, integración, cableado y pruebas de carga en
+[`docs/CONCERT_MODE.md`](docs/CONCERT_MODE.md).
+
 ## Limitaciones conocidas
 
 - Spotify exige Premium para el Web Playback SDK y para controlar la reproducción por API.

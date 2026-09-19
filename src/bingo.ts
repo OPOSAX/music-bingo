@@ -27,6 +27,8 @@ export interface GameConfig {
   startMode: StartMode;
   /** Marcado automático de las tarjetas escaneadas: al sonar, al revelar el título, o nunca. */
   autoMark?: 'played' | 'revealed' | 'off';
+  /** Mostrar la letra de la canción en curso en las tarjetas (karaoke). */
+  lyrics?: boolean;
 }
 
 /** Celda de una tarjeta: índice dentro del pool de canciones o null si es libre. */

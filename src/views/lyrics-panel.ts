@@ -1,0 +1,135 @@
+/** Panel de letra con resaltado de la línea en curso (karaoke). */
+
+import { button, clear, h } from '../dom.js';
+import { currentLineIndex, fetchLyrics, type Lyrics, type LyricsQuery } from '../lyrics.js';
+
+export interface PlaybackClock {
+  /** Momento (ms, Date.now()) en que empezó a sonar el fragmento. */
+  at: number;
+  /** Posición de la canción en ese momento (ms). */
+  pos: number;
+  /** Duración del fragmento (ms). */
+  len: number;
+}
+
+export interface LyricsPanel {
+  el: HTMLElement;
+  /** Muestra la letra de una canción (null para vaciar). */
+  show(track: LyricsQuery | null, clock: PlaybackClock | null): void;
+  setClock(clock: PlaybackClock | null): void;
+  destroy(): void;
+}
+
+export function createLyricsPanel(options: { compact?: boolean } = {}): LyricsPanel {
+  const body = h('div', { class: 'lyrics-body' });
+  const status = h('p', { class: 'muted small' });
+  const el = h('section', { class: `lyrics${options.compact ? ' compact' : ''}` }, h('div', { class: 'row space' }, h('h3', null, '🎤 Letra'), status), body);
+  let current: LyricsQuery | null = null;
+  let lyrics: Lyrics | null = null;
+  let clock: PlaybackClock | null = null;
+  let timer: number | null = null;
+  let lineEls: HTMLElement[] = [];
+  let lastIndex = -2;
+  let userScrolled = false;
+  body.addEventListener('scroll', () => {
+    userScrolled = true;
+  });
+
+  function stopTimer(): void {
+    if (timer !== null) window.clearInterval(timer);
+    timer = null;
+  }
+
+  function positionNow(): number | null {
+    if (!clock) return null;
+    const elapsed = Date.now() - clock.at;
+    if (elapsed < -2000) return null;
+    return clock.pos + Math.min(Math.max(0, elapsed), clock.len);
+  }
+
+  function tick(): void {
+    if (!lyrics || lyrics.synced.length === 0) return;
+    const pos = positionNow();
+    const index = pos === null ? -1 : currentLineIndex(lyrics.synced, pos);
+    if (index === lastIndex) return;
+    lastIndex = index;
+    lineEls.forEach((line, i) => {
+      line.classList.toggle('current', i === index);
+      line.classList.toggle('past', i < index);
+    });
+    const target = lineEls[index];
+    if (target && !userScrolled) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  function render(): void {
+    clear(body);
+    lineEls = [];
+    lastIndex = -2;
+    userScrolled = false;
+    if (!current) {
+      status.textContent = '';
+      return;
+    }
+    if (!lyrics) {
+      status.textContent = 'No se encontró la letra';
+      body.appendChild(h('p', { class: 'muted' }, 'Esta canción no está en LRCLIB.'));
+      return;
+    }
+    status.textContent = lyrics.synced.length ? 'Sincronizada · LRCLIB' : 'LRCLIB';
+    if (lyrics.synced.length) {
+      for (const line of lyrics.synced) {
+        const lineEl = h('p', { class: 'lyric-line' }, line.text || '♪');
+        lineEls.push(lineEl);
+        body.appendChild(lineEl);
+      }
+      tick();
+      stopTimer();
+      timer = window.setInterval(tick, 250);
+    } else {
+      for (const text of lyrics.plain.split('\n')) body.appendChild(h('p', { class: 'lyric-line' }, text || '♪'));
+    }
+  }
+
+  return {
+    el,
+    show(track, newClock) {
+      clock = newClock;
+      if (track?.id === current?.id && track !== null) {
+        tick();
+        return;
+      }
+      current = track;
+      lyrics = null;
+      stopTimer();
+      clear(body);
+      if (!track) {
+        status.textContent = '';
+        return;
+      }
+      status.textContent = 'Buscando la letra…';
+      const requested = track.id;
+      void fetchLyrics(track).then((found) => {
+        if (current?.id !== requested) return;
+        lyrics = found;
+        render();
+      });
+    },
+    setClock(newClock) {
+      clock = newClock;
+      tick();
+    },
+    destroy() {
+      stopTimer();
+      el.remove();
+    },
+  };
+}
+
+/** Botón para mostrar u ocultar el panel (para pantallas pequeñas). */
+export function lyricsToggle(panel: LyricsPanel, label = 'Letra'): HTMLButtonElement {
+  const btn = button(`🎤 Ocultar ${label.toLowerCase()}`, () => {
+    panel.el.hidden = !panel.el.hidden;
+    btn.textContent = panel.el.hidden ? `🎤 Mostrar ${label.toLowerCase()}` : `🎤 Ocultar ${label.toLowerCase()}`;
+  }, 'btn btn-sm');
+  return btn;
+}

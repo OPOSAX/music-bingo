@@ -49,8 +49,16 @@ test('generateCards genera cardCount tarjetas distintas', () => {
   assert.equal(keys.size, 50);
 });
 
-test('generateCard falla sin canciones suficientes', () => {
-  assert.throws(() => generateCard(config, 10, 0));
+test('generateCard rellena con casillas libres si faltan canciones', () => {
+  const card = generateCard(config, 10, 0);
+  assert.equal(card.cells.length, 25);
+  const songs = card.cells.filter((c): c is number => c !== null);
+  assert.equal(songs.length, 10, 'usa todas las canciones disponibles');
+  assert.equal(new Set(songs).size, 10, 'sin repetir');
+  assert.equal(card.cells.filter((c) => c === null).length, 15, '14 libres más el centro');
+  assert.deepEqual(generateCard(config, 10, 0), card, 'determinista');
+  assert.notDeepEqual(generateCard(config, 10, 1).cells, card.cells, 'las libres cambian de sitio entre tarjetas');
+  assert.throws(() => generateCard(config, 0, 0));
 });
 
 test('playOrder es una permutación determinista del pool', () => {
@@ -93,7 +101,8 @@ test('evaluateMarks respeta las marcas del jugador', () => {
 
 test('validateConfig informa de errores', () => {
   assert.deepEqual(validateConfig(config, 60), []);
-  assert.ok(validateConfig(config, 10).some((e) => e.includes('al menos 24')));
+  assert.deepEqual(validateConfig(config, 10), [], 'menos canciones que casillas ya no es un error');
+  assert.ok(validateConfig(config, 0).length > 0);
   assert.ok(validateConfig({ ...config, cardCount: 0 }, 60).length > 0);
   assert.ok(validateConfig({ ...config, snippetSeconds: 1 }, 60).length > 0);
 });

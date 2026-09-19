@@ -113,7 +113,7 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
     const needed = cellCount(size, freeCenter.checked);
     const recommended = recommendedPoolSize(size, freeCenter.checked);
     const count = selected?.trackCount ?? null;
-    hint.textContent = `Cada tarjeta tiene ${needed} canciones. Se recomiendan al menos ${recommended} canciones en la lista` + (count !== null ? ` (la seleccionada tiene ${count}).` : '.');
+    hint.textContent = `Cada tarjeta tiene ${needed} canciones. Se recomiendan al menos ${recommended} en la lista` + (count !== null ? ` (la seleccionada tiene ${count}).` : '.') + ' Si la lista tiene menos canciones que casillas, las casillas sobrantes quedan libres.';
     freeCenter.disabled = size % 2 === 0;
   };
   gridSelect.addEventListener('change', updateHint);

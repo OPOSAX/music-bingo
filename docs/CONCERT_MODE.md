@@ -239,7 +239,7 @@ npm run build && npm start        # http://127.0.0.1:8888
 
 ```bash
 # Docker (recomendado en el servidor OVH): app + señalización + SFU en http://IP:3010/
-BTALK_ANNOUNCED_IP=158.69.117.161 CONCERT_DJ_TOKEN=un-secreto docker compose --profile concert up -d --build
+curl -fsSL https://raw.githubusercontent.com/OPOSAX/music-bingo/main/deploy/setup-server.sh | bash   # www.bingohit.cl/sistema
 
 # Sin Docker (Node 20+, compila mediasoup en la primera instalación)
 npm ci && npm run build

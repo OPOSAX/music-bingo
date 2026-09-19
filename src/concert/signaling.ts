@@ -115,7 +115,10 @@ export class SocketIoSignaling implements ConcertSignaling {
 export async function connectBTalk(btalkUrl: string, auth: { token?: string; roomId: string }): Promise<SocketIoSignaling> {
   const base = btalkUrl.replace(/\/$/, '');
   const mod = (await import(/* @vite-ignore */ `${base}/socket.io/socket.io.esm.min.js`)) as { io: (url: string, opts: Record<string, unknown>) => SocketLike };
-  const socket = mod.io(base, { autoConnect: false, transports: ['websocket'], auth, reconnection: true, reconnectionDelayMax: 5000 });
+  // El servidor puede vivir bajo un prefijo (p. ej. https://www.bingohit.cl/sistema): el prefijo va en `path`, no en el namespace.
+  const url = new URL(base);
+  const prefix = url.pathname.replace(/\/$/, '');
+  const socket = mod.io(url.origin, { path: `${prefix}/socket.io`, autoConnect: false, transports: ['websocket'], auth, reconnection: true, reconnectionDelayMax: 5000 });
   return new SocketIoSignaling(socket);
 }
 

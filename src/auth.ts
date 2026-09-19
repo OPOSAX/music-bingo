@@ -54,7 +54,7 @@ export function isUsingDefaultClientId(): boolean {
 
 /**
  * URI de redirección: la propia página (sin query, hash ni "index.html").
- * Debe registrarse tal cual en el panel de Spotify, p. ej. https://www.paolosaxton.com/bingomusical/
+ * Debe registrarse tal cual en el panel de Spotify, p. ej. https://www.bingohit.cl/sistema/
  */
 export function redirectUri(): string {
   return `${location.origin}${location.pathname.replace(/index\.html$/, '')}`;

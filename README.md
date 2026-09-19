@@ -107,8 +107,8 @@ app con nginx. Todo se orquesta con `docker-compose.yml`.
 ### Con HTTPS automático (Caddy + Let's Encrypt)
 
 Spotify exige `https://` en el Redirect URI para cualquier host que no sea `127.0.0.1`,
-así que la app se sirve en **https://www.paolosaxton.com/bingomusical/** (ruta definida en
-`docker/Caddyfile`; `paolosaxton.com` redirige al `www`, y la raíz del dominio queda libre
+así que el sistema se sirve en **https://www.bingohit.cl/sistema/** (ruta definida en
+`docker/Caddyfile`; `bingohit.cl` redirige al `www`, y la raíz del dominio queda libre
 para tu web: mientras no haya nada, redirige al bingo).
 
 1. **DNS**: en el panel del dominio crea dos registros A apuntando a la IP del servidor:
@@ -136,7 +136,7 @@ para tu web: mientras no haya nada, redirige al bingo).
    docker compose --profile https up -d --build
    ```
 
-3. **Spotify**: añade `https://www.paolosaxton.com/bingomusical/` como Redirect URI en el
+3. **Spotify**: añade `https://www.bingohit.cl/sistema/` como Redirect URI en el
    panel de tu app (con la barra final).
 
 ### Detrás de tu propio servidor web
@@ -147,7 +147,7 @@ Si prefieres configurar el proxy a mano (o usas Traefik u otro), arranca solo la
 docker compose up -d --build     # publica la app en http://127.0.0.1:8080 (solo local)
 ```
 
-y añade a tu sitio la ruta `/bingomusical/` apuntando a ese puerto. En
+y añade a tu sitio la ruta `/sistema/` apuntando a ese puerto. En
 `deploy/nginx-site.example.conf` tienes el bloque para nginx y el equivalente para Apache.
 `APP_PORT` en `.env` cambia el puerto.
 
@@ -198,7 +198,7 @@ tests/            Pruebas con node:test
 serve.mjs         Servidor estático de desarrollo
 Dockerfile        Imagen de producción (compila + nginx)
 docker-compose.yml Perfiles: por defecto (app), https (Caddy), dev
-docker/           nginx.conf y Caddyfile (dominio www.paolosaxton.com)
+docker/           nginx.conf y Caddyfile (dominio www.bingohit.cl)
 deploy/           setup-server.sh: instalación/actualización en el servidor
 ```
 

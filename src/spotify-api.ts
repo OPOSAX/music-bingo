@@ -190,19 +190,51 @@ export async function getPlaylistTracks(
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<Track[]> {
   const encoded = encodeURIComponent(id);
-  // Desde febrero de 2026 la ruta es /items; la antigua /tracks solo se prueba si /items no existe.
+  const attempts: string[] = [];
+  const fail = (label: string, err: unknown) => {
+    attempts.push(`${label}: ${err instanceof Error ? err.message : String(err)}`);
+  };
+
+  // 1. Ruta vigente desde febrero de 2026.
   try {
     return itemsToTracks(await paginate<PlaylistItem>(`/playlists/${encoded}/items?limit=100`, onProgress));
   } catch (err) {
-    if (err instanceof SpotifyApiError && err.status === 403) {
-      throw new SpotifyApiError(
-        'Spotify no permite leer esta lista. Con apps en modo desarrollo solo se pueden usar listas creadas por ti o en las que colaboras. Elige una lista tuya o usa "Canciones que te gustan".',
-        403,
-      );
-    }
-    if (!(err instanceof SpotifyApiError && err.status === 404)) throw err;
+    fail('/items', err);
   }
-  return itemsToTracks(await paginate<PlaylistItem>(`/playlists/${encoded}/tracks?limit=100`, onProgress));
+
+  // 2. Objeto completo de la lista: incluye la primera página de elementos y el enlace a las siguientes.
+  try {
+    const playlist = await request<{ items?: Page<PlaylistItem> | null; tracks?: Page<PlaylistItem> | null }>(`/playlists/${encoded}`);
+    const first = playlist.items ?? playlist.tracks;
+    if (first && Array.isArray(first.items)) {
+      const all = [...first.items];
+      onProgress?.(all.length, first.total);
+      let next = first.next;
+      while (next) {
+        const page: Page<PlaylistItem> = await request<Page<PlaylistItem>>(next);
+        all.push(...page.items);
+        onProgress?.(all.length, page.total);
+        next = page.next;
+      }
+      return itemsToTracks(all);
+    }
+    fail('/playlists/{id}', new Error('la respuesta no incluye los elementos'));
+  } catch (err) {
+    fail('/playlists/{id}', err);
+  }
+
+  // 3. Ruta antigua, por si la app aún la tuviera disponible.
+  try {
+    return itemsToTracks(await paginate<PlaylistItem>(`/playlists/${encoded}/tracks?limit=100`, onProgress));
+  } catch (err) {
+    fail('/tracks', err);
+  }
+
+  const forbidden = attempts.every((a) => /HTTP 403/.test(a));
+  const hint = forbidden
+    ? 'Spotify rechaza leer esta lista (403). Con apps en modo desarrollo solo se pueden leer listas creadas por ti o en las que colaboras, y la cuenta con la que iniciaste sesión debe ser la dueña de la app en el panel de Spotify o estar añadida en "User Management". '
+    : 'No se pudo leer la lista. ';
+  throw new SpotifyApiError(`${hint}Intentos: ${attempts.join(' | ')}`, forbidden ? 403 : 0);
 }
 
 export async function getSavedTracks(onProgress?: (loaded: number, total: number) => void): Promise<Track[]> {

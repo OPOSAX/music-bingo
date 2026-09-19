@@ -134,6 +134,10 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     game.config.startMode = startModeSelect.value as StartMode;
     saveGame(game);
   });
+  if (game.config.continuous === undefined && isMobileBrowser()) {
+    game.config.continuous = true;
+    saveGame(game);
+  }
   const continuousCheck = h('input', { type: 'checkbox', checked: game.config.continuous === true });
   continuousCheck.addEventListener('change', () => {
     game.config.continuous = continuousCheck.checked;
@@ -183,7 +187,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       'div',
       { class: 'fields' },
       h('label', { class: 'field' }, h('span', null, 'Cada canción empieza'), startModeSelect),
-      h('label', { class: 'field field-check' }, continuousCheck, h('span', null, 'Reproducción continua: la canción sigue sonando hasta que pulses "Siguiente" (evita que el móvil suspenda Spotify)')),
+      h('label', { class: 'field field-check' }, continuousCheck, h('span', null, 'Reproducción continua: la canción se repite en bucle hasta que pulses "Siguiente" (evita que el móvil suspenda Spotify)')),
     ),
   );
   if (mobile) {

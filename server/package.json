@@ -7,7 +7,8 @@
   "main": "concert-server.mjs",
   "scripts": {
     "start": "node concert-server.mjs",
-    "test": "node test/unit.mjs && node test/smoke.mjs"
+    "dev:platform": "node dev-platform.mjs",
+    "test": "node test/unit.mjs && node --test test/platform.test.mjs && node test/smoke.mjs"
   },
   "engines": {
     "node": ">=20"

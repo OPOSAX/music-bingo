@@ -25,6 +25,10 @@ import { ConcertRoom } from '../public/js/concert/concert-room.js';
 import { isCrowdMicAppData, readConfig } from '../public/js/concert/protocol.js';
 import { assertCanConsume, attachConcertHandlers } from '../public/js/concert/server-handlers.js';
 import { attachLiveHandlers, iceServersFromEnv, liveSummary } from './live.mjs';
+import { hashToken, identify } from './platform/auth.mjs';
+import { createPlatformApi } from './platform/api.mjs';
+import { PlatformService } from './platform/service.mjs';
+import { Store } from './platform/store.mjs';
 
 const require = createRequire(import.meta.url);
 const config = require('./btalk/config.js');
@@ -85,6 +89,25 @@ export async function startServer(options = {}) {
     const adminToken = env.CONCERT_ADMIN_TOKEN || '';
     if (!env.CONCERT_DJ_TOKEN && !env.LIVE_HOST_TOKEN) log.warn('CONCERT_DJ_TOKEN / LIVE_HOST_TOKEN no definidos: token de animador/DJ para este arranque', { token: djToken });
 
+    // ---- Plataforma Bingo Hit: animadores, eventos, tarjetas, órdenes y pagos centralizados ----
+    const platformAdminToken = env.PLATFORM_ADMIN_TOKEN || randomBytes(18).toString('base64url');
+    if (!env.PLATFORM_ADMIN_TOKEN) log.warn('PLATFORM_ADMIN_TOKEN no definido: token del Administrador General para este arranque', { token: platformAdminToken });
+    const dataFile = env.PLATFORM_DATA_FILE === 'memory' ? null : path.resolve(env.PLATFORM_DATA_FILE || path.join(here, 'data', 'platform.json'));
+    const store = new Store(dataFile);
+    const publicUrl = (env.PUBLIC_URL || `http://localhost:${port}`).replace(/\/$/, '');
+    const platform = new PlatformService(store, {
+        env,
+        appUrl: `${publicUrl}/`,
+        apiUrl: publicUrl,
+        log: (m) => log.info(m),
+        liveState: () => ({
+            concurrentPlayers: [...rooms.values()].reduce((n, r) => n + (r.live?.viewers.size ?? 0), 0),
+            liveEvents: [...rooms.values()].filter((r) => r.live?.active).length,
+        }),
+    });
+    const platformAdminHash = hashToken(platformAdminToken);
+    const platformApi = createPlatformApi(platform, { adminToken: platformAdminToken, mockPayments: env.MOCK_PAYMENTS !== 'false' });
+
     // ---- mediasoup workers (adaptado de B-Talk Server.js createWorkers) ----
     const workers = [];
     const { numWorkers } = config.mediasoup;
@@ -119,6 +142,11 @@ export async function startServer(options = {}) {
     // Configuración pública para el cliente Live (sin secretos: las credenciales TURN son temporales si hay TURN_SECRET).
     app.get('/live/config', (_req, res) => {
         res.json({ live: true, iceServers: iceServersFromEnv(env), maxViewersHint: Number(env.LIVE_MAX_VIEWERS) || 5000 });
+    });
+    app.use((req, res, next) => {
+        platformApi(req, res).then((handled) => {
+            if (!handled) next();
+        }, next);
     });
     app.use('/sfu', express.static(path.join(here, 'public', 'sfu'), { maxAge: '1d' }));
     if (existsSync(staticDir)) {
@@ -173,16 +201,38 @@ export async function startServer(options = {}) {
         log.info('Room closed', { roomId });
     }
 
-    function roleFor(socket) {
+    function roleFor(socket, roomId) {
         const token = String(socket.handshake.auth?.token || '');
-        if (adminToken && token === adminToken) return 'admin';
-        if (token === djToken || token === liveHostToken) return 'dj';
-        return 'participant';
+        if (adminToken && token === adminToken) return { role: 'admin' };
+        if (token === djToken || token === liveHostToken) return { role: 'dj' };
+        // Identidades de la plataforma: el rol y la propiedad del evento se comprueban aquí, nunca en el cliente.
+        const who = identify(store, token, platformAdminHash);
+        if (who.role === 'PLATFORM_ADMIN') return { role: 'admin', who };
+        if (who.role === 'HOST' && platform.canOperateRoom(who.user, roomId)) return { role: 'dj', who };
+        if (who.role === 'PLAYER') return { role: 'participant', who };
+        return { role: 'participant', who: { role: 'ANON' } };
+    }
+
+    /** Acceso al plano Live/juego de un evento de la plataforma (los eventos sin registro siguen siendo libres). */
+    function canJoinRoom(roomId, who) {
+        const event = platform.eventByRoom(roomId);
+        if (!event) return { ok: true };
+        if (who?.role === 'HOST' || who?.role === 'PLATFORM_ADMIN') return { ok: true };
+        if (event.eventMode === 'LOCAL' && event.cardDistribution === 'FREE') return { ok: true };
+        if (who?.role !== 'PLAYER') return { ok: false, reason: 'card-required' };
+        const access = platform.canPlayerJoinEvent(who.id, event.id);
+        return access.allowed ? { ok: true } : { ok: false, reason: access.reason };
+    }
+
+    function canStartLiveIn(roomId, who) {
+        const event = platform.eventByRoom(roomId);
+        if (!event || !who || who.role === 'PLATFORM_ADMIN') return true;
+        return who.role === 'HOST' && who.user?.permissions?.canStartLive !== false && event.hostId === who.id;
     }
 
     io.on('connection', (socket) => {
         const roomId = String(socket.handshake.auth?.roomId || 'demo').slice(0, 64);
-        const role = roleFor(socket);
+        const { role, who } = roleFor(socket, roomId);
         const isOperator = role === 'dj' || role === 'admin';
         const entry = getRoom(roomId);
         entry.sockets++;
@@ -191,7 +241,7 @@ export async function startServer(options = {}) {
 
         const detach = attachConcertHandlers(concert, socket, role, { log: (m) => log.debug(m) });
         // Bingo Hit Live comparte sala, peer y transportes con el módulo Concert.
-        attachLiveHandlers({ io, socket, roomId, entry, btalk, ensurePeer: () => ensurePeer(), waitFor, findProducer, log: (m) => log.debug(m), env, isOperator });
+        attachLiveHandlers({ io, socket, roomId, entry, btalk, ensurePeer: () => ensurePeer(), waitFor, findProducer, log: (m) => log.debug(m), env, isOperator, canJoin: () => canJoinRoom(roomId, who), canStartLive: () => canStartLiveIn(roomId, who) });
         socket.on('concert:join', () => {
             if (isOperator) socket.join(opsRoom(roomId));
         });

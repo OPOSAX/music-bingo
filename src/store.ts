@@ -31,6 +31,8 @@ export interface GameState {
   poolPublishedAt?: number;
   /** Servidor Bingo Hit Live (WebRTC + WebSocket) asociado a la partida, si el anfitrión lo activó. */
   liveServer?: string | undefined;
+  /** Evento de la plataforma Bingo Hit al que pertenece esta partida (sala Live `bingo-<evento>`). */
+  eventId?: string | undefined;
 }
 
 const PLAYER_ID_KEY = 'musicbingo:playerId';

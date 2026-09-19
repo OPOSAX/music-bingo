@@ -380,3 +380,34 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
 .bingo-claims li.ok { border-left: 3px solid var(--accent); }
 .live-panel .fields { margin-top: 8px; }
 .live-video-wrap.live-floating::before { content: ''; display: block; aspect-ratio: 16 / 9; }
+
+/* ---- Plataforma Bingo Hit: eventos, compra, paneles ---- */
+.event-hero { margin: 8px 0 12px; }
+.event-cover { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius); box-shadow: var(--shadow); }
+.event-head h1 { margin: 8px 0 4px; }
+.event-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.event-fact { display: flex; gap: 8px; align-items: center; background: var(--panel-2); border-radius: 8px; padding: 8px 10px; font-weight: 600; }
+.event-fact-icon { font-size: 1.2rem; }
+.countdown-clock { font-size: 2rem; font-weight: 800; letter-spacing: 0.05em; font-variant-numeric: tabular-nums; }
+.acquire h2 { margin-top: 0; }
+.qty-row { display: flex; align-items: center; gap: 12px; margin: 8px 0; flex-wrap: wrap; }
+.qty-btn { font-size: 1.4rem; width: 48px; padding: 6px 0; }
+.qty-value { font-size: 1.6rem; min-width: 32px; text-align: center; }
+.order-total { font-size: 1.3rem; font-weight: 800; color: var(--accent); margin: 4px 0 8px; }
+.acquire .btn-xl { width: 100%; margin-top: 8px; }
+.card-tabs-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 8px 0; }
+.card-tabs { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.player-card[hidden] { display: none; }
+.event-card { background: var(--panel-2); border-radius: var(--radius); padding: 12px; margin: 10px 0; border-left: 4px solid transparent; }
+.event-card h3 { margin: 0; color: var(--text); }
+.event-card.status-live { border-left-color: var(--danger); }
+.event-card.status-published { border-left-color: var(--accent); }
+.event-card.status-draft { border-left-color: var(--warn); }
+.radio-row { display: flex; gap: 12px; flex-wrap: wrap; margin: 6px 0; }
+.radio { display: flex; align-items: center; gap: 6px; background: var(--panel-2); padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+.wizard h3 { margin: 16px 0 6px; color: var(--accent); }
+.wizard textarea.input { min-height: 60px; resize: vertical; }
+.table-wrap { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.table th, .table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--panel-2); white-space: nowrap; }
+.perm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 12px; margin: 8px 0; }

@@ -70,6 +70,19 @@ services:
       TURN_USERNAME: ${TURN_USERNAME:-}
       TURN_CREDENTIAL: ${TURN_CREDENTIAL:-}
       TURN_SECRET: ${TURN_SECRET:-}
+      # Plataforma Bingo Hit
+      PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:-}
+      PLATFORM_DATA_FILE: /srv/server/data/platform.json
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
+      MOCK_PAYMENT_SECRET: ${MOCK_PAYMENT_SECRET:-}
+      MOCK_PAYMENTS: ${MOCK_PAYMENTS:-true}
+      TRANSBANK_COMMERCE_CODE: ${TRANSBANK_COMMERCE_CODE:-}
+      TRANSBANK_API_KEY: ${TRANSBANK_API_KEY:-}
+      TRANSBANK_ENV: ${TRANSBANK_ENV:-integration}
+      MERCADOPAGO_ACCESS_TOKEN: ${MERCADOPAGO_ACCESS_TOKEN:-}
+    volumes:
+      - ./server/data:/srv/server/data
     ports:
       - "${CONCERT_PORT:-3010}:3010/tcp"
       - "40000-40100:40000-40100/udp"

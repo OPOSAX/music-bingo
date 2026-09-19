@@ -1,7 +1,7 @@
 /** Panel de letra con resaltado de la línea en curso (karaoke). */
 
 import { button, clear, h } from '../dom.js';
-import { currentLineIndex, fetchLyrics, type Lyrics, type LyricsQuery } from '../lyrics.js';
+import { currentLineIndex, fetchLyrics, lastLyricsError, type Lyrics, type LyricsQuery } from '../lyrics.js';
 
 export interface PlaybackClock {
   /** Momento (ms, Date.now()) en que empezó a sonar el fragmento. */
@@ -71,11 +71,11 @@ export function createLyricsPanel(options: { compact?: boolean } = {}): LyricsPa
       return;
     }
     if (!lyrics) {
-      status.textContent = 'No se encontró la letra';
-      body.appendChild(h('p', { class: 'muted' }, 'Esta canción no está en LRCLIB.'));
+      status.textContent = lastLyricsError ? 'Sin conexión con las letras' : 'No se encontró la letra';
+      body.appendChild(h('p', { class: 'muted' }, lastLyricsError ? `No se pudo consultar la letra: ${lastLyricsError}.` : `No hay letra para "${current.name}" en LRCLIB ni en lyrics.ovh.`));
       return;
     }
-    status.textContent = lyrics.synced.length ? 'Sincronizada · LRCLIB' : 'LRCLIB';
+    status.textContent = lyrics.synced.length ? `Sincronizada · ${lyrics.source}` : lyrics.source;
     if (lyrics.synced.length) {
       for (const line of lyrics.synced) {
         const lineEl = h('p', { class: 'lyric-line' }, line.text || '♪');

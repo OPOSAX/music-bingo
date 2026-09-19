@@ -25,6 +25,8 @@ export interface PlaylistSummary {
   id: string;
   name: string;
   owner: string;
+  ownerId: string;
+  collaborative: boolean;
   /** Número de canciones, o null si la API no lo informa. */
   trackCount: number | null;
   image: string | null;
@@ -113,6 +115,7 @@ export function getMe(): Promise<SpotifyUser> {
 interface ApiPlaylist {
   id: string;
   name: string;
+  collaborative?: boolean;
   owner?: { display_name?: string; id?: string } | null;
   /** Nombre clásico del campo con el total de canciones. */
   tracks?: { total?: number } | null;
@@ -127,6 +130,8 @@ function toSummary(p: ApiPlaylist): PlaylistSummary {
     id: p.id,
     name: p.name,
     owner: p.owner?.display_name || p.owner?.id || '',
+    ownerId: p.owner?.id ?? '',
+    collaborative: p.collaborative === true,
     trackCount: typeof total === 'number' ? total : null,
     image: p.images?.[0]?.url ?? null,
   };
@@ -185,24 +190,28 @@ export async function getPlaylistTracks(
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<Track[]> {
   const encoded = encodeURIComponent(id);
-  // Desde febrero de 2026 la ruta es /items (la antigua /tracks devuelve 403 o 404).
-  const paths = [`/playlists/${encoded}/items?limit=100`, `/playlists/${encoded}/tracks?limit=100`];
-  let lastError: unknown = null;
-  for (const path of paths) {
-    try {
-      const items = await paginate<PlaylistItem>(path, onProgress);
-      return itemsToTracks(items);
-    } catch (err) {
-      if (!(err instanceof SpotifyApiError && (err.status === 403 || err.status === 404))) throw err;
-      lastError = err;
+  // Desde febrero de 2026 la ruta es /items; la antigua /tracks solo se prueba si /items no existe.
+  try {
+    return itemsToTracks(await paginate<PlaylistItem>(`/playlists/${encoded}/items?limit=100`, onProgress));
+  } catch (err) {
+    if (err instanceof SpotifyApiError && err.status === 403) {
+      throw new SpotifyApiError(
+        'Spotify no permite leer esta lista. Con apps en modo desarrollo solo se pueden usar listas creadas por ti o en las que colaboras. Elige una lista tuya o usa "Canciones que te gustan".',
+        403,
+      );
     }
+    if (!(err instanceof SpotifyApiError && err.status === 404)) throw err;
   }
-  throw lastError;
+  return itemsToTracks(await paginate<PlaylistItem>(`/playlists/${encoded}/tracks?limit=100`, onProgress));
 }
 
 export async function getSavedTracks(onProgress?: (loaded: number, total: number) => void): Promise<Track[]> {
-  const items = await paginate<PlaylistItem>('/me/tracks?limit=50', onProgress);
-  return itemsToTracks(items);
+  try {
+    return itemsToTracks(await paginate<PlaylistItem>('/me/tracks?limit=50', onProgress));
+  } catch (err) {
+    if (!(err instanceof SpotifyApiError && (err.status === 403 || err.status === 404))) throw err;
+  }
+  return itemsToTracks(await paginate<PlaylistItem>('/me/library/tracks?limit=50', onProgress));
 }
 
 export async function getDevices(): Promise<Device[]> {

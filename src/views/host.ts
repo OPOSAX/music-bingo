@@ -54,6 +54,23 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     deviceStatus.textContent = `Reproduciendo en: ${name}`;
     deviceStatus.className = 'ok';
     stopAutoDetect();
+    showDeviceUi(false);
+    refreshControls();
+  };
+  /** Con dispositivo conectado se ocultan la ayuda y los botones de búsqueda; sin él, se muestran. */
+  function showDeviceUi(searching: boolean): void {
+    deviceHint.hidden = !searching;
+    openSpotifyBtn.hidden = !searching;
+    searchBtn.textContent = searching ? (mobile ? '🔄 Buscar dispositivos' : 'Otros dispositivos…') : 'Cambiar dispositivo…';
+    searchBtn.className = searching && mobile ? 'btn btn-primary' : 'btn';
+    if (!searching) deviceList.querySelectorAll('.device-btn').forEach((el) => el.remove());
+  }
+  const clearDevice = () => {
+    snippetPlayer = null;
+    deviceName = '';
+    deviceStatus.textContent = 'Sin dispositivo de reproducción.';
+    deviceStatus.className = 'muted';
+    showDeviceUi(true);
     refreshControls();
   };
 
@@ -117,6 +134,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   });
   let deviceName = '';
   function renderDeviceButtons(devices: api.Device[]): void {
+    if (snippetPlayer) return;
     deviceList.querySelectorAll('.device-btn').forEach((el) => el.remove());
     for (const d of devices) {
       deviceList.appendChild(button(`${d.is_active ? '● ' : ''}${d.name} (${d.type})`, () => setDevice(d.id, d.name), 'btn btn-sm device-btn'));
@@ -137,24 +155,21 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   /** Abre la app de Spotify (para que se registre como dispositivo) y sigue buscando al volver. */
   const openSpotify = () => {
     startAutoDetect(120);
-    const link = h('a', { href: 'spotify:', rel: 'noopener' });
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => {
-      if (document.visibilityState === 'visible') window.open('https://open.spotify.com/', '_blank');
-    }, 1500);
+    // Solo el esquema de la app: abrir además open.spotify.com duplicaba la apertura en el navegador.
+    location.href = 'spotify:';
   };
 
   const mobile = isMobileBrowser();
+  const openSpotifyBtn = button('🎧 Abrir Spotify', openSpotify, 'btn btn-primary');
+  const searchBtn = button(mobile ? '🔄 Buscar dispositivos' : 'Otros dispositivos…', () => { showDeviceUi(true); void refreshDevices(); }, mobile ? 'btn btn-primary' : 'btn');
   if (snippetPlayer && browserPlayer) {
     setDevice(snippetPlayer.deviceId, 'este navegador');
     deviceList.appendChild(h('label', { class: 'field' }, h('span', null, 'Volumen'), volume));
   } else if (!mobile) {
     deviceList.appendChild(browserBtn);
   }
-  if (mobile) deviceList.appendChild(button('🎧 Abrir Spotify', openSpotify, 'btn btn-primary'));
-  deviceList.appendChild(button(mobile ? '🔄 Buscar dispositivos' : 'Otros dispositivos…', () => void refreshDevices(), 'btn'));
+  if (mobile) deviceList.appendChild(openSpotifyBtn);
+  deviceList.appendChild(searchBtn);
   playerPanel.appendChild(deviceHint);
   playerPanel.appendChild(
     h('label', { class: 'field field-check' }, continuousCheck, h('span', null, 'Reproducción continua: la canción sigue sonando hasta que pulses "Siguiente" (evita que el móvil suspenda Spotify)')),
@@ -163,6 +178,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     deviceHint.textContent = 'La música suena a través de la app de Spotify. Pulsa "Abrir Spotify", dale a reproducir cualquier canción y vuelve: el teléfono se detecta solo. Con la reproducción continua activada, Spotify no se pausa y el dispositivo no se pierde.';
     if (!snippetPlayer) startAutoDetect();
   }
+  showDeviceUi(!snippetPlayer);
   // Al volver a la pestaña (por ejemplo desde Spotify), volver a buscar el dispositivo si falta.
   const onVisible = () => {
     if (document.visibilityState === 'visible' && !snippetPlayer && location.hash.startsWith('#/host')) startAutoDetect(60);
@@ -436,9 +452,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       }
       if (err instanceof api.SpotifyApiError && err.status === 404) {
         toast('Spotify no encuentra el dispositivo elegido. Abre la app de Spotify en él, reproduce algo un segundo y vuelve a elegirlo en "Buscar dispositivos".', 'error');
-        snippetPlayer = null;
-        deviceStatus.textContent = 'Sin dispositivo de reproducción.';
-        deviceStatus.className = 'muted';
+        clearDevice();
         startAutoDetect(120);
       } else {
         toast(errorMessage(err), 'error');

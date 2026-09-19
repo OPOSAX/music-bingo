@@ -11,8 +11,8 @@ RUN echo "$APP_VERSION" > public/version.txt
 
 FROM node:20-slim AS deps
 WORKDIR /srv/server
-# Como en el Dockerfile de B-Talk: compilar el worker de mediasoup en la imagen (reproducible) en vez del binario precompilado.
-ENV MEDIASOUP_SKIP_WORKER_PREBUILT_DOWNLOAD="true" NODE_ENV=production
+# Binario precompilado del worker (rápido). Para compilarlo en la imagen como hace B-Talk: MEDIASOUP_SKIP_WORKER_PREBUILT_DOWNLOAD=true.
+ENV NODE_ENV=production
 RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential python3 python3-pip ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*

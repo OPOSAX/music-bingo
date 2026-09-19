@@ -86,9 +86,9 @@ export async function startServer(options = {}) {
     // ---- mediasoup workers (adaptado de B-Talk Server.js createWorkers) ----
     const workers = [];
     const { numWorkers } = config.mediasoup;
-    const { logLevel, logTags, rtcMinPort, rtcMaxPort } = config.mediasoup.worker;
+    const { logLevel, logTags, rtcMinPort, rtcMaxPort, disableLiburing } = config.mediasoup.worker;
     for (let i = 0; i < numWorkers; i++) {
-        const worker = await mediasoup.createWorker({ logLevel, logTags, rtcMinPort, rtcMaxPort });
+        const worker = await mediasoup.createWorker({ logLevel, logTags, rtcMinPort, rtcMaxPort, disableLiburing });
         worker.on('died', () => {
             log.error('Mediasoup worker died, exiting in 2 seconds... [pid:%d]', worker.pid);
             setTimeout(() => process.exit(1), 2000);

@@ -121,6 +121,8 @@ crea otro SFU, no hay LiveKit ni P2P: el SFU es el mismo mediasoup de B-Talk.
 - **Peers de mediasoup bajo demanda.** READY no crea `Peer` ni transporte; el router de la sala no se
   cierra mientras queden participantes (a diferencia de `Room.removePeer` de B-Talk).
 - `CONCERT_MODE=false` ⇒ `concert:join` responde `{ok:false, code:'disabled'}`.
+- El worker de mediasoup arranca con `disableLiburing` (Docker bloquea `io_uring` y el worker moría con
+  código 40); `MEDIASOUP_LIBURING=true` lo reactiva en hosts que lo permiten.
 
 ### Bug verificado en B-Talk: `getAudioConstraints()` (asignación cruzada)
 

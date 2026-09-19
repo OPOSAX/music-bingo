@@ -56,6 +56,9 @@ module.exports = {
     mediasoup: {
         numWorkers,
         worker: {
+            // Docker (seccomp) y algunos VPS bloquean io_uring: sin esto el worker sale con código 40
+            // ("io_uring_queue_init() failed: Operation not permitted"). MEDIASOUP_LIBURING=true lo reactiva.
+            disableLiburing: process.env.MEDIASOUP_LIBURING !== 'true',
             logLevel: process.env.MEDIASOUP_LOG_LEVEL || 'warn',
             logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp', 'rtx', 'bwe', 'score', 'sctp'],
             rtcMinPort,

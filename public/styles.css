@@ -290,3 +290,46 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
 .check-grid .field-check { padding-bottom: 0; align-self: auto; }
 .gen-result { margin-top: 8px; }
 .selected-source { background: rgba(29, 185, 84, 0.15); border-radius: 8px; padding: 10px 12px; }
+
+/* ---- Biznet Crowd Mic (modo concierto) ---- */
+.sing-panel { text-align: center; transition: background 0.3s; }
+.sing-state { padding: 12px 0; }
+.sing-icon { font-size: 4rem; line-height: 1; }
+.sing-panel h2 { margin: 8px 0 4px; }
+.sing-actions { justify-content: center; flex-direction: column; }
+.sing-actions .btn { width: 100%; }
+.st-ready { background: linear-gradient(180deg, rgba(29, 185, 84, 0.25), var(--panel)); }
+.st-prep { background: linear-gradient(180deg, rgba(245, 166, 35, 0.25), var(--panel)); }
+.st-live { background: linear-gradient(180deg, rgba(229, 72, 77, 0.35), var(--panel)); }
+.st-muted { background: linear-gradient(180deg, rgba(245, 166, 35, 0.15), var(--panel)); }
+.st-off { background: linear-gradient(180deg, rgba(120, 120, 120, 0.25), var(--panel)); }
+.live-pulse { width: 18px; height: 18px; border-radius: 50%; background: var(--danger); margin: 0 auto 8px; animation: pulse 1s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.6); } 100% { box-shadow: 0 0 0 16px rgba(229, 72, 77, 0); } }
+.dj-counts .stat strong { font-size: 1.4rem; }
+.stat-ready { background: rgba(29, 185, 84, 0.2); }
+.stat-prep { background: rgba(245, 166, 35, 0.2); }
+.stat-live { background: rgba(229, 72, 77, 0.25); }
+.slot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.slot { background: var(--panel-2); border-radius: var(--radius); padding: 12px; border: 2px solid transparent; }
+.slot h3 { margin: 0; color: var(--text); }
+.slot-name { font-size: 1.2rem; font-weight: 700; margin: 6px 0; }
+.slot-live { border-color: var(--danger); }
+.slot-prepared, .slot-preparing { border-color: var(--warn); }
+.slot-muted { border-color: var(--muted); }
+.slot-selected { border-color: var(--accent); }
+.slot-metrics { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 4px 0; }
+.badge-live { background: var(--danger); color: #fff; }
+.badge-muted { background: var(--muted); color: #111; }
+.aec-good { color: var(--accent); }
+.aec-fair { color: var(--warn); }
+.aec-bad { color: var(--danger); }
+.ready-list { list-style: none; padding: 0; margin: 8px 0 0; max-height: 60vh; overflow: auto; }
+.ready-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--panel-2); flex-wrap: wrap; }
+.ready-row .actions { margin-top: 0; }
+.ready-info { display: flex; flex-direction: column; }
+.metrics { background: var(--panel-2); padding: 8px; border-radius: 8px; white-space: pre-wrap; overflow-x: auto; }
+.technical { margin-top: 12px; }
+.technical summary, details.panel summary { cursor: pointer; font-weight: 700; }
+.audio-panel audio { margin-top: 4px; }
+.concert-access .actions { margin-top: 8px; }
+.concert-qr svg { max-width: 240px; }

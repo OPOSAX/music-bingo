@@ -25,6 +25,7 @@ export async function renderHome(root: HTMLElement): Promise<void> {
   if (showClientIdForm || !auth.getClientId()) {
     root.appendChild(renderClientIdForm());
     root.appendChild(renderPlayerAccess());
+    root.appendChild(renderConcertAccess());
     return;
   }
 
@@ -40,12 +41,14 @@ export async function renderHome(root: HTMLElement): Promise<void> {
       ),
     );
     root.appendChild(renderPlayerAccess());
+    root.appendChild(renderConcertAccess());
     return;
   }
 
   const panel = h('section', { class: 'panel' }, h('h2', null, 'Anfitrión'), h('p', { class: 'muted' }, 'Comprobando tu cuenta…'));
   root.appendChild(panel);
   root.appendChild(renderPlayerAccess());
+  root.appendChild(renderConcertAccess());
 
   try {
     const me = await api.getMe();
@@ -128,6 +131,16 @@ function renderClientIdForm(): HTMLElement {
     void renderHome(root);
   });
   return form;
+}
+
+function renderConcertAccess(): HTMLElement {
+  return h(
+    'section',
+    { class: 'panel concert-access' },
+    h('h2', null, '🎤 Biznet Crowd Mic'),
+    h('p', { class: 'muted' }, 'Modo concierto: el público canta desde su móvil y el DJ decide quién suena por el PA.'),
+    h('div', { class: 'actions' }, button('Panel del DJ', () => navigate('/dj'), 'btn'), button('Quiero cantar', () => navigate('/sing'), 'btn btn-primary')),
+  );
 }
 
 function renderPlayerAccess(): HTMLElement {

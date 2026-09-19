@@ -1,0 +1,42 @@
+name: Comprobar el servidor
+
+# Diagnóstico a mano desde la pestaña Actions: DNS, HTTPS del sistema y estado de los contenedores por SSH.
+# No cambia nada en el servidor. Los tokens nunca se imprimen completos.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      HOST: ${{ secrets.DEPLOY_HOST }}
+      USER: ${{ secrets.DEPLOY_USER }}
+      SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+    steps:
+      - name: DNS y HTTPS
+        run: |
+          echo "== DNS =="; getent hosts www.bingohit.cl bingohit.cl || echo "sin registro DNS"
+          echo "== https://www.bingohit.cl/sistema/health =="; curl -sSik -m 25 https://www.bingohit.cl/sistema/health || echo "(sin respuesta)"
+          echo; echo "== http por IP con Host =="; curl -sSi -m 20 "http://${HOST:-158.69.117.161}/sistema/health" -H 'Host: www.bingohit.cl' | head -20 || echo "(sin respuesta)"
+      - name: Estado por SSH
+        if: env.HOST != '' && env.USER != ''
+        env:
+          SSHPASS: ${{ secrets.DEPLOY_PASSWORD }}
+        run: |
+          mkdir -p ~/.ssh
+          if [ -n "$SSH_KEY" ]; then
+            printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key; chmod 600 ~/.ssh/deploy_key
+            SSH="ssh -i ~/.ssh/deploy_key -o BatchMode=yes"
+          else
+            sudo apt-get update -qq && sudo apt-get install -y -qq sshpass >/dev/null
+            SSH="sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no"
+          fi
+          $SSH -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new "$USER@$HOST" '
+            echo "== contenedores =="; docker ps --format "{{.Names}}  {{.Status}}  {{.Ports}}" 2>&1 || true
+            echo "== health local =="; curl -s -m 5 http://127.0.0.1:3010/health || echo "(3010 no responde)"; echo
+            echo "== puertos =="; ss -ltnp 2>/dev/null | grep -E ":80 |:443 |:3010 |:8080 " || true
+            echo "== .env (recortado) =="; if [ -f /opt/music-bingo/.env ]; then sed -E "s/^((PLATFORM_ADMIN|LIVE_HOST|CONCERT_DJ)_TOKEN=.{4}).*/\1…/; s/^(MOCK_PAYMENT_SECRET=).*/\1…/" /opt/music-bingo/.env | grep -E "TOKEN|PUBLIC_URL|ANNOUNCED|PORT|PROVIDER"; else echo "sin /opt/music-bingo/.env"; fi
+            echo "== sitios web =="; ls /etc/nginx/sites-enabled 2>/dev/null; ls /etc/apache2/sites-enabled 2>/dev/null; ls /etc/caddy 2>/dev/null; true
+            echo "== últimos logs concert =="; docker logs --tail 25 $(docker ps -q --filter name=concert) 2>&1 | tail -25 || true
+          ' < /dev/null

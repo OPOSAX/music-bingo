@@ -25,6 +25,8 @@ export interface PlaylistSummary {
   id: string;
   name: string;
   owner: string;
+  ownerId: string;
+  collaborative: boolean;
   /** Número de canciones, o null si la API no lo informa. */
   trackCount: number | null;
   image: string | null;
@@ -113,6 +115,7 @@ export function getMe(): Promise<SpotifyUser> {
 interface ApiPlaylist {
   id: string;
   name: string;
+  collaborative?: boolean;
   owner?: { display_name?: string; id?: string } | null;
   /** Nombre clásico del campo con el total de canciones. */
   tracks?: { total?: number } | null;
@@ -127,6 +130,8 @@ function toSummary(p: ApiPlaylist): PlaylistSummary {
     id: p.id,
     name: p.name,
     owner: p.owner?.display_name || p.owner?.id || '',
+    ownerId: p.owner?.id ?? '',
+    collaborative: p.collaborative === true,
     trackCount: typeof total === 'number' ? total : null,
     image: p.images?.[0]?.url ?? null,
   };
@@ -185,24 +190,60 @@ export async function getPlaylistTracks(
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<Track[]> {
   const encoded = encodeURIComponent(id);
-  // Desde febrero de 2026 la ruta es /items (la antigua /tracks devuelve 403 o 404).
-  const paths = [`/playlists/${encoded}/items?limit=100`, `/playlists/${encoded}/tracks?limit=100`];
-  let lastError: unknown = null;
-  for (const path of paths) {
-    try {
-      const items = await paginate<PlaylistItem>(path, onProgress);
-      return itemsToTracks(items);
-    } catch (err) {
-      if (!(err instanceof SpotifyApiError && (err.status === 403 || err.status === 404))) throw err;
-      lastError = err;
-    }
+  const attempts: string[] = [];
+  const fail = (label: string, err: unknown) => {
+    attempts.push(`${label}: ${err instanceof Error ? err.message : String(err)}`);
+  };
+
+  // 1. Ruta vigente desde febrero de 2026.
+  try {
+    return itemsToTracks(await paginate<PlaylistItem>(`/playlists/${encoded}/items?limit=100`, onProgress));
+  } catch (err) {
+    fail('/items', err);
   }
-  throw lastError;
+
+  // 2. Objeto completo de la lista: incluye la primera página de elementos y el enlace a las siguientes.
+  try {
+    const playlist = await request<{ items?: Page<PlaylistItem> | null; tracks?: Page<PlaylistItem> | null }>(`/playlists/${encoded}`);
+    const first = playlist.items ?? playlist.tracks;
+    if (first && Array.isArray(first.items)) {
+      const all = [...first.items];
+      onProgress?.(all.length, first.total);
+      let next = first.next;
+      while (next) {
+        const page: Page<PlaylistItem> = await request<Page<PlaylistItem>>(next);
+        all.push(...page.items);
+        onProgress?.(all.length, page.total);
+        next = page.next;
+      }
+      return itemsToTracks(all);
+    }
+    fail('/playlists/{id}', new Error('la respuesta no incluye los elementos'));
+  } catch (err) {
+    fail('/playlists/{id}', err);
+  }
+
+  // 3. Ruta antigua, por si la app aún la tuviera disponible.
+  try {
+    return itemsToTracks(await paginate<PlaylistItem>(`/playlists/${encoded}/tracks?limit=100`, onProgress));
+  } catch (err) {
+    fail('/tracks', err);
+  }
+
+  const forbidden = attempts.every((a) => /HTTP 403/.test(a));
+  const hint = forbidden
+    ? 'Spotify rechaza leer esta lista (403). Con apps en modo desarrollo solo se pueden leer listas creadas por ti o en las que colaboras, y la cuenta con la que iniciaste sesión debe ser la dueña de la app en el panel de Spotify o estar añadida en "User Management". '
+    : 'No se pudo leer la lista. ';
+  throw new SpotifyApiError(`${hint}Intentos: ${attempts.join(' | ')}`, forbidden ? 403 : 0);
 }
 
 export async function getSavedTracks(onProgress?: (loaded: number, total: number) => void): Promise<Track[]> {
-  const items = await paginate<PlaylistItem>('/me/tracks?limit=50', onProgress);
-  return itemsToTracks(items);
+  try {
+    return itemsToTracks(await paginate<PlaylistItem>('/me/tracks?limit=50', onProgress));
+  } catch (err) {
+    if (!(err instanceof SpotifyApiError && (err.status === 403 || err.status === 404))) throw err;
+  }
+  return itemsToTracks(await paginate<PlaylistItem>('/me/library/tracks?limit=50', onProgress));
 }
 
 export async function getDevices(): Promise<Device[]> {

@@ -63,20 +63,24 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
     }
   });
 
-  api
-    .getMyPlaylists()
-    .then((playlists) => {
+  Promise.all([api.getMyPlaylists(), api.getMe().catch(() => null)])
+    .then(([all, me]) => {
+      // Spotify (modo desarrollo) solo deja leer listas propias o colaborativas: las demás se muestran al final, marcadas.
+      const usable = (p: api.PlaylistSummary) => !me || p.ownerId === me.id || p.collaborative;
+      const playlists = [...all.filter(usable), ...all.filter((p) => !usable(p))];
       clear(playlistGrid);
       playlistGrid.appendChild(
         h('button', { class: 'playlist-item', type: 'button', dataset: { id: 'saved' }, onClick: () => select({ kind: 'saved', id: 'saved', name: 'Canciones que te gustan', trackCount: null }) }, h('div', { class: 'playlist-cover placeholder' }, '♥'), h('div', { class: 'playlist-meta' }, h('strong', null, 'Canciones que te gustan'), h('span', { class: 'muted small' }, 'Tu biblioteca'))),
       );
       for (const p of playlists) {
+        const ok = usable(p);
+        const meta = [p.owner, p.trackCount !== null ? `${p.trackCount} canciones` : null, ok ? null : 'de otro usuario: no disponible'].filter(Boolean).join(' · ');
         playlistGrid.appendChild(
           h(
             'button',
-            { class: 'playlist-item', type: 'button', dataset: { id: p.id }, onClick: () => select({ kind: 'playlist', id: p.id, name: p.name, trackCount: p.trackCount }) },
+            { class: `playlist-item${ok ? '' : ' unavailable'}`, type: 'button', dataset: { id: p.id }, onClick: () => select({ kind: 'playlist', id: p.id, name: p.name, trackCount: p.trackCount }) },
             p.image ? h('img', { class: 'playlist-cover', src: p.image, alt: '', loading: 'lazy' }) : h('div', { class: 'playlist-cover placeholder' }, '♪'),
-            h('div', { class: 'playlist-meta' }, h('strong', null, p.name), h('span', { class: 'muted small' }, p.trackCount !== null ? `${p.owner} · ${p.trackCount} canciones` : p.owner)),
+            h('div', { class: 'playlist-meta' }, h('strong', null, p.name), h('span', { class: 'muted small' }, meta)),
           ),
         );
       }

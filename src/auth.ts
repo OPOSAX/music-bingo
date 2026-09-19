@@ -29,6 +29,8 @@ interface StoredTokens {
   refreshToken: string;
   /** Momento (ms desde epoch) en el que caduca el access token. */
   expiresAt: number;
+  /** Permisos concedidos por Spotify (separados por espacios). */
+  scope?: string;
 }
 
 export class AuthError extends Error {}
@@ -78,6 +80,17 @@ export function logout(): void {
   writeTokens(null);
 }
 
+/** Permisos concedidos en el último inicio de sesión (vacío si se desconoce). */
+export function grantedScopes(): string[] {
+  return (readTokens()?.scope ?? '').split(' ').filter(Boolean);
+}
+
+/** Permisos pedidos que Spotify no concedió. */
+export function missingScopes(): string[] {
+  const granted = new Set(grantedScopes());
+  return granted.size === 0 ? [] : SCOPES.filter((s) => !granted.has(s));
+}
+
 function randomString(length: number): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
   const bytes = new Uint8Array(length);
@@ -124,6 +137,7 @@ async function tokenRequest(body: Record<string, string>): Promise<StoredTokens>
     access_token?: string;
     refresh_token?: string;
     expires_in?: number;
+    scope?: string;
     error?: string;
     error_description?: string;
   };
@@ -135,6 +149,7 @@ async function tokenRequest(body: Record<string, string>): Promise<StoredTokens>
     accessToken: data.access_token,
     refreshToken: data.refresh_token ?? previous?.refreshToken ?? '',
     expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000,
+    scope: data.scope ?? previous?.scope ?? '',
   };
 }
 

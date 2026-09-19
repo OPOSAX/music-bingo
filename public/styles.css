@@ -278,3 +278,4 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
 .lyric-line.past { color: #7a7a7a; }
 .lyric-line.current { color: var(--text); font-weight: 700; font-size: 1.15rem; transform: translateX(4px); }
 .lyrics-body:has(.lyric-line.current) .lyric-line:not(.current):not(.past) { color: var(--muted); }
+.version { margin-top: -6px; }

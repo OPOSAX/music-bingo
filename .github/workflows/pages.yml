@@ -26,6 +26,12 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - name: Marcar la versión y evitar cachés antiguas
+        run: |
+          v="${GITHUB_SHA::7}"
+          echo "$v" > public/version.txt
+          sed -i "s#js/main.js#js/main.js?v=$v#; s#styles.css#styles.css?v=$v#" public/index.html
+          # Los módulos importados desde main.js no llevan ?v: se sirven con revalidación (max-age corto de Pages).
       - name: Activar GitHub Pages si hace falta
         uses: actions/configure-pages@v5
         with:

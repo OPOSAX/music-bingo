@@ -81,27 +81,30 @@ export function validateConfig(config: GameConfig, poolSize: number): string[] {
     errors.push('La duración del fragmento debe estar entre 3 y 120 segundos.');
   }
   if (!config.seed) errors.push('Falta el código de partida.');
-  const needed = cellCount(config.gridSize, config.freeCenter);
-  if (poolSize < needed) {
-    errors.push(`La lista necesita al menos ${needed} canciones distintas (tiene ${poolSize}).`);
-  }
+  if (poolSize < 1) errors.push('La lista no tiene canciones reproducibles.');
   return errors;
 }
 
-/** Genera la tarjeta `index` de forma determinista a partir de la semilla. */
+/**
+ * Genera la tarjeta `index` de forma determinista a partir de la semilla.
+ * Si la lista tiene menos canciones que casillas, las casillas sobrantes quedan libres.
+ */
 export function generateCard(config: GameConfig, poolSize: number, index: number): Card {
   const { gridSize } = config;
   const needed = cellCount(gridSize, config.freeCenter);
-  if (poolSize < needed) throw new Error('No hay suficientes canciones para generar una tarjeta.');
+  if (poolSize < 1) throw new Error('No hay canciones para generar una tarjeta.');
   const rand = rngFromString(`${config.seed}:card:${index}`);
   const indices = Array.from({ length: poolSize }, (_, i) => i);
-  const chosen = shuffle(indices, rand).slice(0, needed);
+  let chosen: Cell[] = shuffle(indices, rand).slice(0, needed);
+  if (chosen.length < needed) {
+    chosen = shuffle([...chosen, ...new Array<Cell>(needed - chosen.length).fill(null)], rand);
+  }
   const cells: Cell[] = [];
   const free = hasFreeCenter(gridSize, config.freeCenter) ? centerIndex(gridSize) : -1;
   let k = 0;
   for (let i = 0; i < gridSize * gridSize; i++) {
     if (i === free) cells.push(null);
-    else cells.push(chosen[k++] as number);
+    else cells.push(chosen[k++] ?? null);
   }
   return { index, gridSize, cells };
 }

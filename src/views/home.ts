@@ -6,13 +6,15 @@ import * as api from '../spotify-api.js';
 import { clearGame, loadGame } from '../store.js';
 import { navigate } from '../router.js';
 
+let showClientIdForm = false;
+
 export async function renderHome(root: HTMLElement): Promise<void> {
   clear(root);
   root.appendChild(
     h('section', { class: 'hero' }, h('h1', null, '🎵 Bingo musical'), h('p', { class: 'lead' }, 'Tu lista de Spotify, tus tarjetas, tu fiesta.')),
   );
 
-  if (!auth.getClientId()) {
+  if (showClientIdForm || !auth.getClientId()) {
     root.appendChild(renderClientIdForm());
     root.appendChild(renderPlayerAccess());
     return;
@@ -26,7 +28,7 @@ export async function renderHome(root: HTMLElement): Promise<void> {
         h('h2', null, 'Anfitrión'),
         h('p', null, 'Inicia sesión con tu cuenta de Spotify Premium para elegir la lista y reproducir las canciones.'),
         button('Conectar con Spotify', () => auth.login().catch((err) => toast(errorMessage(err), 'error')), 'btn btn-primary btn-lg'),
-        h('p', { class: 'muted small' }, 'Client ID configurado: ', h('code', null, auth.getClientId()), ' ', button('Cambiar', () => { auth.setClientId(''); void renderHome(root); }, 'btn btn-link')),
+        h('p', { class: 'muted small' }, 'Client ID configurado: ', h('code', null, auth.getClientId()), ' ', button('Cambiar', () => { showClientIdForm = true; void renderHome(root); }, 'btn btn-link')),
       ),
     );
     root.appendChild(renderPlayerAccess());
@@ -82,7 +84,7 @@ export async function renderHome(root: HTMLElement): Promise<void> {
 }
 
 function renderClientIdForm(): HTMLElement {
-  const input = h('input', { class: 'input', type: 'text', placeholder: 'Client ID de tu app de Spotify', autocomplete: 'off', spellcheck: false });
+  const input = h('input', { class: 'input', type: 'text', placeholder: 'Client ID de tu app de Spotify', autocomplete: 'off', spellcheck: false, value: auth.getClientId() });
   const uri = auth.redirectUri();
   const form = h(
     'form',
@@ -97,7 +99,7 @@ function renderClientIdForm(): HTMLElement {
       h('li', null, 'Copia el Client ID de la app y pégalo aquí.'),
     ),
     h('div', { class: 'row' }, input, h('button', { class: 'btn btn-primary', type: 'submit' }, 'Guardar')),
-    h('p', { class: 'muted small' }, 'El Client ID se guarda solo en este navegador. No hace falta client secret.'),
+    h('p', { class: 'muted small' }, 'El Client ID se guarda solo en este navegador. No hace falta client secret. ', auth.isUsingDefaultClientId() ? null : button('Volver al Client ID por defecto', () => { auth.setClientId(''); showClientIdForm = false; void renderHome(form.parentElement as HTMLElement); }, 'btn btn-link')),
   );
   form.addEventListener('submit', (ev) => {
     ev.preventDefault();
@@ -107,6 +109,7 @@ function renderClientIdForm(): HTMLElement {
       return;
     }
     auth.setClientId(value);
+    showClientIdForm = false;
     toast('Client ID guardado', 'success');
     const root = form.parentElement as HTMLElement;
     void renderHome(root);

@@ -164,8 +164,8 @@ function toTrack(t: ApiTrack | null | undefined): Track | null {
   return track;
 }
 
-/** Tamaños de página que se prueban en la búsqueda: Spotify ha ido reduciendo el máximo permitido. */
-const SEARCH_LIMITS = [50, 20, 10, 5];
+/** Tamaños de página de la búsqueda: en modo desarrollo Spotify admite como máximo 10 por petición. */
+const SEARCH_LIMITS = [10, 5];
 let searchLimit = SEARCH_LIMITS[0] as number;
 
 /** Busca canciones con la búsqueda de Spotify (admite filtros como year:1980-1989 o genre:rock). */

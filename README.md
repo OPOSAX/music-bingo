@@ -202,6 +202,13 @@ docker/           nginx.conf y Caddyfile (dominio www.paolosaxton.com)
 deploy/           setup-server.sh: instalación/actualización en el servidor
 ```
 
+## Plataforma Bingo Hit (eventos, tarjetas y pagos)
+
+Administrador General (animadores, permisos, pagos, políticas, métricas), animadores que crean eventos
+**presenciales, online o híbridos** con tarjetas **gratis o pagadas** (conceptos independientes), y jugadores
+que entran por enlace o QR, obtienen o compran tarjetas y juegan con varias a la vez. Los pagos los recibe
+siempre la plataforma. Detalle en [`docs/PLATFORM.md`](docs/PLATFORM.md).
+
 ## Bingo Hit Live
 
 El animador transmite cámara, micrófono y audio del evento (mixer → USB → WebRTC) y los jugadores

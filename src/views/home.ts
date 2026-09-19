@@ -137,6 +137,9 @@ function renderConcertAccess(): HTMLElement {
   return h(
     'section',
     { class: 'panel concert-access' },
+    h('h2', null, '🎟 Eventos Bingo Hit'),
+    h('p', { class: 'muted' }, 'Animadores: crea y configura tus eventos (presencial, online o híbrido; tarjetas gratis o pagadas). Administrador: pagos, permisos y métricas.'),
+    h('div', { class: 'actions' }, button('Mis eventos (animador)', () => navigate('/events'), 'btn'), button('Administración', () => navigate('/admin'), 'btn btn-link')),
     h('h2', null, '🎤 Karaoke'),
     h('p', { class: 'muted' }, 'El público canta desde su móvil y el DJ decide quién suena por los altavoces.'),
     h('div', { class: 'actions' }, button('Panel del DJ', () => navigate('/dj'), 'btn'), button('Quiero cantar', () => navigate('/sing'), 'btn btn-primary')),

@@ -114,7 +114,7 @@ function parseMessage(raw) {
  * de transporte, emisor y rol resuelto en el servidor (nunca desde el cliente).
  */
 export function attachLiveHandlers(ctx) {
-  const { io, socket, roomId, entry, btalk, ensurePeer, waitFor, findProducer, log, env, isOperator } = ctx;
+  const { io, socket, roomId, entry, btalk, ensurePeer, waitFor, findProducer, log, env, isOperator, canJoin = () => ({ ok: true }), canStartLive = () => true } = ctx;
   const live = (entry.live ??= createLiveState());
   const role = isOperator ? 'host' : 'viewer';
   const hostsRoom = `live:${roomId}:hosts`;
@@ -134,6 +134,8 @@ export function attachLiveHandlers(ctx) {
 
   socket.on(E.join, (payload, ack) => {
     if (joined) return ok(ack, { role, roomId, hostOnline: live.hosts.size > 0, live: liveInfo(live), viewers: live.viewers.size, iceServers: iceServersFromEnv(env), history: history(live) });
+    const access = canJoin();
+    if (!access.ok) return fail(ack, access.reason || 'forbidden', 'Necesitas una tarjeta válida para entrar a este evento');
     joined = true;
     socket.join(allRoom);
     if (role === 'host') {
@@ -241,6 +243,7 @@ export function attachLiveHandlers(ctx) {
 
   socket.on(E.start, (_p, ack) => {
     if (role !== 'host') return fail(ack, 'forbidden', 'Solo el animador');
+    if (!canStartLive()) return fail(ack, 'permission', 'Sin permiso para transmitir en directo');
     live.active = true;
     live.startedAt = live.startedAt ?? Date.now();
     io.to(allRoom).emit(E.started, { ...liveInfo(live), t: Date.now() });

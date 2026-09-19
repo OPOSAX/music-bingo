@@ -14,6 +14,10 @@ import { releaseDj, renderDj } from './concert/views/dj.js';
 import { releaseSing, renderSing } from './concert/views/sing.js';
 import { releaseLiveHost, renderLiveHost } from './live/views/live-host.js';
 import { renderPlay } from './live/views/play.js';
+import { renderEvent } from './platform/views/event.js';
+import { renderPay } from './platform/views/pay.js';
+import { renderHostEvents } from './platform/views/host-events.js';
+import { renderAdmin } from './platform/views/admin.js';
 
 const root = document.getElementById('app') as HTMLElement;
 
@@ -57,6 +61,18 @@ async function render(route: Route): Promise<void> {
         break;
       case '/play':
         await renderPlay(root, route.params);
+        break;
+      case '/event':
+        await renderEvent(root, route.params);
+        break;
+      case '/pay':
+        await renderPay(root, route.params);
+        break;
+      case '/events':
+        await renderHostEvents(root, route.params);
+        break;
+      case '/admin':
+        await renderAdmin(root, route.params);
         break;
       default:
         navigate('/');

@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 COPY --from=build --chown=concert:concert /src/public ./public
 COPY --from=deps --chown=concert:concert /srv/server/node_modules ./server/node_modules
 COPY --chown=concert:concert server ./server
+RUN mkdir -p /srv/server/data && chown concert:concert /srv/server/data
 USER concert
 EXPOSE 3010/tcp
 EXPOSE 40000-40100/udp

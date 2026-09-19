@@ -78,8 +78,8 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
     let message = `Spotify ha devuelto el error ${res.status}.`;
     try {
       const data = (await res.json()) as { error?: { message?: string; reason?: string } };
-      if (data.error?.message) message = data.error.message;
-      if (data.error?.reason) message += ` (${data.error.reason})`;
+      if (data.error?.message) message = `${data.error.message} (HTTP ${res.status} en ${path.split('?')[0]})`;
+      if (data.error?.reason) message += ` [${data.error.reason}]`;
     } catch {
       /* sin cuerpo */
     }
@@ -185,21 +185,19 @@ export async function getPlaylistTracks(
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<Track[]> {
   const encoded = encodeURIComponent(id);
-  // Se prueba primero la ruta clásica y, si no existe, la nueva.
-  const paths = [`/playlists/${encoded}/tracks?limit=100`, `/playlists/${encoded}/items?limit=100`];
+  // Desde febrero de 2026 la ruta es /items (la antigua /tracks devuelve 403 o 404).
+  const paths = [`/playlists/${encoded}/items?limit=100`, `/playlists/${encoded}/tracks?limit=100`];
   let lastError: unknown = null;
   for (const path of paths) {
     try {
       const items = await paginate<PlaylistItem>(path, onProgress);
-      const tracks = itemsToTracks(items);
-      if (tracks.length > 0 || items.length === 0) return tracks;
+      return itemsToTracks(items);
     } catch (err) {
-      if (!(err instanceof SpotifyApiError && err.status === 404)) throw err;
+      if (!(err instanceof SpotifyApiError && (err.status === 403 || err.status === 404))) throw err;
       lastError = err;
     }
   }
-  if (lastError) throw lastError;
-  return [];
+  throw lastError;
 }
 
 export async function getSavedTracks(onProgress?: (loaded: number, total: number) => void): Promise<Track[]> {

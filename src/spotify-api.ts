@@ -164,12 +164,41 @@ function toTrack(t: ApiTrack | null | undefined): Track | null {
   return track;
 }
 
+/** Tamaños de página que se prueban en la búsqueda: Spotify ha ido reduciendo el máximo permitido. */
+const SEARCH_LIMITS = [50, 20, 10, 5];
+let searchLimit = SEARCH_LIMITS[0] as number;
+
 /** Busca canciones con la búsqueda de Spotify (admite filtros como year:1980-1989 o genre:rock). */
 export async function searchTracks(query: string, limit = 50, offset = 0, market?: string): Promise<Track[]> {
-  const params = new URLSearchParams({ q: query, type: 'track', limit: String(Math.min(50, limit)), offset: String(offset) });
-  if (market) params.set('market', market);
-  const data = await request<{ tracks?: { items?: (ApiTrack | null)[] } }>(`/search?${params}`);
-  return (data.tracks?.items ?? []).map((t) => toTrack(t)).filter((t): t is Track => t !== null);
+  for (;;) {
+    const params = new URLSearchParams({ q: query, type: 'track', limit: String(Math.min(searchLimit, limit)), offset: String(offset) });
+    if (market) params.set('market', market);
+    try {
+      const data = await request<{ tracks?: { items?: (ApiTrack | null)[] } }>(`/search?${params}`);
+      return (data.tracks?.items ?? []).map((t) => toTrack(t)).filter((t): t is Track => t !== null);
+    } catch (err) {
+      // "Invalid limit": el máximo permitido es menor; se prueba con el siguiente tamaño de página.
+      const next = SEARCH_LIMITS.find((l) => l < searchLimit);
+      if (err instanceof SpotifyApiError && err.status === 400 && /limit/i.test(err.message) && next) {
+        searchLimit = next;
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+/** Reúne hasta `wanted` canciones para una consulta, paginando con el tamaño de página permitido. */
+export async function searchTracksUpTo(query: string, wanted: number, market?: string, maxPages = 6): Promise<Track[]> {
+  const out: Track[] = [];
+  let offset = 0;
+  for (let page = 0; page < maxPages && out.length < wanted; page++) {
+    const batch = await searchTracks(query, wanted - out.length, offset, market);
+    out.push(...batch);
+    if (batch.length === 0 || batch.length < Math.min(searchLimit, wanted - out.length + batch.length)) break;
+    offset += batch.length;
+  }
+  return out;
 }
 
 /** Elimina duplicados (misma canción o mismo título+artista). */

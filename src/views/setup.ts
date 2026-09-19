@@ -67,13 +67,13 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
     clear(genResult);
     genStatus.textContent = `Buscando en Spotify (${queries.length} búsquedas)…`;
     try {
-      const perQuery = Math.min(50, Math.max(20, Math.ceil((options.count * 2) / Math.max(1, queries.length))));
+      const perQuery = Math.min(60, Math.max(10, Math.ceil((options.count * 1.5) / Math.max(1, queries.length))));
       const results: Track[][] = [];
       let failures = 0;
       for (const [i, q] of queries.entries()) {
         genStatus.textContent = `Buscando ${q.label || q.q}… (${i + 1}/${queries.length})`;
         try {
-          results.push(await api.searchTracks(q.q, perQuery, 0, q.market));
+          results.push(await api.searchTracksUpTo(q.q, perQuery, q.market));
         } catch (err) {
           failures++;
           if (failures === queries.length) throw err;

@@ -1,6 +1,6 @@
 /** Pantalla del anfitrión: reproduce fragmentos, lleva la cuenta y verifica tarjetas. */
 
-import type { Card, Track } from '../bingo.js';
+import type { Card, StartMode, Track } from '../bingo.js';
 import { cardLabel, evaluateCard, generateCard } from '../bingo.js';
 import { button, clear, errorMessage, formatDuration, h, toast } from '../dom.js';
 import { SnippetPlayer, createBrowserPlayer, snippetStart } from '../player.js';
@@ -127,6 +127,12 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     void attempt();
     autoDetectTimer = window.setInterval(() => void attempt(), 4000);
   }
+  const startModeSelect = h('select', { class: 'input' }, h('option', { value: 'random' }, 'Punto aleatorio'), h('option', { value: 'middle' }, 'Hacia la mitad (estribillo)'), h('option', { value: 'start' }, 'Desde el principio'));
+  startModeSelect.value = game.config.startMode;
+  startModeSelect.addEventListener('change', () => {
+    game.config.startMode = startModeSelect.value as StartMode;
+    saveGame(game);
+  });
   const continuousCheck = h('input', { type: 'checkbox', checked: game.config.continuous === true });
   continuousCheck.addEventListener('change', () => {
     game.config.continuous = continuousCheck.checked;
@@ -172,7 +178,12 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   deviceList.appendChild(searchBtn);
   playerPanel.appendChild(deviceHint);
   playerPanel.appendChild(
-    h('label', { class: 'field field-check' }, continuousCheck, h('span', null, 'Reproducción continua: la canción sigue sonando hasta que pulses "Siguiente" (evita que el móvil suspenda Spotify)')),
+    h(
+      'div',
+      { class: 'fields' },
+      h('label', { class: 'field' }, h('span', null, 'Cada canción empieza'), startModeSelect),
+      h('label', { class: 'field field-check' }, continuousCheck, h('span', null, 'Reproducción continua: la canción sigue sonando hasta que pulses "Siguiente" (evita que el móvil suspenda Spotify)')),
+    ),
   );
   if (mobile) {
     deviceHint.textContent = 'La música suena a través de la app de Spotify. Pulsa "Abrir Spotify", dale a reproducir cualquier canción y vuelve: el teléfono se detecta solo. Con la reproducción continua activada, Spotify no se pausa y el dispositivo no se pierde.';
@@ -193,11 +204,12 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   const progressBar = progress.firstElementChild as HTMLElement;
   const nextBtn = button('Siguiente canción ▶', () => void next(), 'btn btn-primary btn-xl');
   const replayBtn = button('Repetir fragmento', () => void replay(), 'btn');
+  const fromStartBtn = button('⏮ Desde el principio', () => void playCurrent(true, 0), 'btn');
   const revealBtn = button('Revelar título', () => reveal(), 'btn');
   const stopBtn = button('■ Parar', () => void stop(), 'btn');
   const lyricsPanel = createLyricsPanel();
   const lyricsBtn = lyricsToggle(lyricsPanel);
-  const gamePanel = h('section', { class: 'panel game-panel' }, h('div', { class: 'row space' }, h('h2', null, 'Canción'), counter), nowPlaying, progress, h('div', { class: 'actions' }, nextBtn, replayBtn, revealBtn, stopBtn, lyricsBtn), lyricsPanel.el);
+  const gamePanel = h('section', { class: 'panel game-panel' }, h('div', { class: 'row space' }, h('h2', null, 'Canción'), counter), nowPlaying, progress, h('div', { class: 'actions' }, nextBtn, replayBtn, fromStartBtn, revealBtn, stopBtn, lyricsBtn), lyricsPanel.el);
   root.appendChild(gamePanel);
   lyricsPanel.el.hidden = game.config.lyrics === false;
   lyricsBtn.hidden = game.config.lyrics === false;
@@ -296,6 +308,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     const ready = snippetPlayer !== null;
     nextBtn.disabled = !ready || finished || playing;
     replayBtn.disabled = !ready || game.position === 0 || playing;
+    fromStartBtn.disabled = !ready || game.position === 0 || playing;
     stopBtn.disabled = !playing;
     revealBtn.disabled = game.position === 0 || game.revealed;
     undoBtn.disabled = game.position === 0 || playing;
@@ -420,11 +433,11 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     }
   }
 
-  async function playCurrent(retry = true): Promise<void> {
+  async function playCurrent(retry = true, positionMs?: number): Promise<void> {
     const idx = currentTrackIndex(game);
     if (idx === null || !snippetPlayer) return;
     const track = game.tracks[idx] as Track;
-    const start = snippetStart(track, game.config.startMode, game.config.snippetSeconds);
+    const start = positionMs ?? snippetStart(track, game.config.startMode, game.config.snippetSeconds);
     const continuous = game.config.continuous === true;
     playing = true;
     refreshControls();
@@ -448,7 +461,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       refreshControls();
       if (err instanceof api.SpotifyApiError && err.status === 404 && retry && (await recoverDevice())) {
         toast('Spotify había perdido el dispositivo; reconectado. Reintentando…', 'info');
-        return playCurrent(false);
+        return playCurrent(false, positionMs);
       }
       if (err instanceof api.SpotifyApiError && err.status === 404) {
         toast('Spotify no encuentra el dispositivo elegido. Abre la app de Spotify en él, reproduce algo un segundo y vuelve a elegirlo en "Buscar dispositivos".', 'error');

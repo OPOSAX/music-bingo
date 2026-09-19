@@ -58,6 +58,11 @@ export async function renderHome(root: HTMLElement): Promise<void> {
         h('p', { class: 'alert alert-warn' }, 'La reproducción en el navegador y el control remoto requieren Spotify Premium. Podrás preparar tarjetas, pero no reproducir las canciones.'),
       );
     }
+    const missing = auth.missingScopes();
+    if (missing.length) {
+      panel.appendChild(h('p', { class: 'alert alert-warn' }, `Spotify no concedió estos permisos: ${missing.join(', ')}. Cierra sesión y vuelve a conectar aceptando todos los permisos.`));
+    }
+    panel.appendChild(h('p', { class: 'muted small' }, `Usuario ${me.id} · cuenta ${me.product ?? 'desconocida'} · permisos concedidos: ${auth.grantedScopes().length || '?'} de ${auth.SCOPES.length}`));
     const game = loadGame();
     const actions = h('div', { class: 'actions' });
     if (game) {

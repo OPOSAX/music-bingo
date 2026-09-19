@@ -7,11 +7,16 @@ import { navigate } from '../router.js';
 import { decodeSharedCard, type SharedCard } from '../share.js';
 import { loadMarks, saveMarks } from '../store.js';
 import { autoMarkedCells, subscribeState, type SyncState } from '../sync.js';
+import { playerId } from '../store.js';
+import { LIVE_EVENTS } from '../live/protocol.js';
+import { liveSession, releaseLiveSessions } from '../live/session.js';
+import { createLiveHostVideo, type LiveHostVideo } from '../live/views/live-video.js';
 import { renderCardGrid } from './card-grid.js';
 import { createLyricsPanel, lyricsToggle, type LyricsPanel } from './lyrics-panel.js';
 
 let subscription: { close(): void } | null = null;
 let lyricsPanel: LyricsPanel | null = null;
+let liveVideo: LiveHostVideo | null = null;
 
 /** Cierra la conexión con el anfitrión al salir de la tarjeta. */
 export function releaseCardSync(): void {
@@ -19,6 +24,9 @@ export function releaseCardSync(): void {
   subscription = null;
   lyricsPanel?.destroy();
   lyricsPanel = null;
+  liveVideo?.destroy();
+  liveVideo = null;
+  releaseLiveSessions();
 }
 
 export async function renderPlayerCard(root: HTMLElement, params: URLSearchParams): Promise<void> {
@@ -52,6 +60,27 @@ export function renderCardView(root: HTMLElement, shared: SharedCard, playerName
 
   const banner = h('div', { class: 'banner' });
   const live = h('div', { class: 'live' });
+  const liveLink = shared.l ? { url: shared.l, event: shared.g } : undefined;
+  const session = liveLink ? liveSession(liveLink, { name: playerName || (localStorage.getItem('musicbingo:playerName') ?? '') }) : null;
+  const bingoBtn = button('🎉 ¡BINGO!', () => void claimBingo(), 'btn btn-primary btn-xl bingo-btn');
+  bingoBtn.hidden = true;
+  let lastClaimAt = 0;
+  async function claimBingo(): Promise<void> {
+    if (!session) return;
+    const ev = evaluateMarks(card, marks.map((m, i) => m || autoMarks[i] === true));
+    if (ev.status === 'none') return;
+    if (Date.now() - lastClaimAt < 3000) return;
+    lastClaimAt = Date.now();
+    bingoBtn.disabled = true;
+    try {
+      const r = await session.request<{ valid: boolean | null }>(LIVE_EVENTS.bingo, { seed: shared.g, index: shared.n, name: playerName, cid: playerId(), kind: ev.status });
+      toast(r.valid === false ? 'El servidor no ve tu tarjeta completa todavía; el animador lo comprobará.' : '¡Bingo enviado al animador!', r.valid === false ? 'info' : 'success');
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    } finally {
+      setTimeout(() => (bingoBtn.disabled = false), 3000);
+    }
+  }
   const feed = h('div', { class: 'feed' });
   const gridHost = h('div', { class: 'player-grid' });
   releaseCardSync();
@@ -66,7 +95,12 @@ export function renderCardView(root: HTMLElement, shared: SharedCard, playerName
       h('div', null, h('h1', null, playerName ? `${playerName} · Tarjeta ${shared.n + 1}` : `Tarjeta ${shared.n + 1}`), h('p', { class: 'muted' }, `Código ${label} · ${shared.t}`)),
     ),
   );
+  if (session) {
+    liveVideo = createLiveHostVideo(session);
+    root.appendChild(liveVideo.el);
+  }
   root.appendChild(banner);
+  root.appendChild(bingoBtn);
   root.appendChild(live);
   root.appendChild(lyricsPanel.el);
   root.appendChild(gridHost);
@@ -139,6 +173,10 @@ export function renderCardView(root: HTMLElement, shared: SharedCard, playerName
     if (ev.status === 'full') banner.textContent = `🎉 ¡BINGO! Tarjeta completa · código ${label}`;
     else if (ev.status === 'line') banner.textContent = `➖ ¡LÍNEA! (${ev.completedLines.length}) · código ${label}`;
     else banner.textContent = `Te faltan ${ev.remaining} canciones`;
+    if (session) {
+      bingoBtn.hidden = ev.status === 'none';
+      bingoBtn.textContent = ev.status === 'full' ? '🎉 ¡BINGO!' : '➖ ¡Cantar línea!';
+    }
     if (ev.status !== lastStatus && ev.status !== 'none') {
       toast(ev.status === 'full' ? '¡BINGO! 🎉' : '¡Línea!', 'success');
       navigator.vibrate?.(ev.status === 'full' ? [100, 50, 100, 50, 300] : [80, 40, 80]);
@@ -164,6 +202,7 @@ export function renderCardView(root: HTMLElement, shared: SharedCard, playerName
         renderLive(true);
       },
       (online) => renderLive(online),
+      liveLink,
     );
   }
 }

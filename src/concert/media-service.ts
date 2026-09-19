@@ -44,11 +44,15 @@ export interface ProducerHandle {
   pause(): Promise<void> | void;
   resume(): Promise<void> | void;
   close(): void;
+  /** Cambia la pista sin renegociar (p. ej. cambio de cámara). */
+  replaceTrack?(track: MediaStreamTrack): Promise<void>;
 }
 
 export interface ProduceOptions {
   codecOptions: Record<string, unknown>;
-  encodings: { maxBitrate: number }[];
+  encodings: { maxBitrate: number; scaleResolutionDownBy?: number }[];
+  /** Por defecto el producer nace en pausa (micrófono del público); Live publica en directo con `paused: false`. */
+  paused?: boolean;
 }
 
 /** Adaptador de transporte: lo implementa B-Talk (mediasoup-client) o el adaptador local. */
@@ -56,7 +60,7 @@ export interface MediaTransportAdapter {
   /** Crea el SEND transport con los parámetros que envió el servidor en la orden PREPARE. */
   createSendTransport(params: unknown): Promise<void>;
   /** Crea el producer de audio. Debe devolverlo ya en pausa (el servidor lo crea con paused:true). */
-  produce(track: MediaStreamTrack, appData: CrowdMicAppData, options: ProduceOptions): Promise<ProducerHandle>;
+  produce(track: MediaStreamTrack, appData: Record<string, unknown>, options: ProduceOptions): Promise<ProducerHandle>;
   closeTransport(): void;
 }
 
@@ -119,7 +123,7 @@ export class ConcertMediaService {
       }
       const appData: CrowdMicAppData = { mediaType: 'audio', source: 'crowd-mic', participantId: identity.participantId, roomId: identity.roomId, slotId: order.slotId };
       try {
-        this.producer = await this.adapter.produce(track, appData, opusOptions(order.profile));
+        this.producer = await this.adapter.produce(track, { ...appData }, opusOptions(order.profile));
         if (!this.producer.paused) await this.producer.pause();
       } catch (err) {
         throw new MediaServiceError('producerFailed', `No se pudo crear el producer: ${String((err as Error)?.message ?? err)}`);
@@ -195,10 +199,10 @@ export class LocalMediaAdapter implements MediaTransportAdapter {
     this.transportsCreated++;
   }
 
-  async produce(track: MediaStreamTrack, appData: CrowdMicAppData): Promise<ProducerHandle> {
+  async produce(track: MediaStreamTrack, appData: Record<string, unknown>): Promise<ProducerHandle> {
     if (!this.transportOpen) throw new Error('transport cerrado');
-    const id = `prod-${appData.participantId}-${this.producers.length + 1}`;
-    const producer = new LocalProducer(id, track, appData);
+    const id = `prod-${String(appData.participantId ?? 'x')}-${this.producers.length + 1}`;
+    const producer = new LocalProducer(id, track, appData as unknown as CrowdMicAppData);
     this.producers.push(producer);
     this.onProduce?.(producer);
     return producer;
@@ -237,6 +241,7 @@ export interface MediasoupProducerLike {
   pause(): void;
   resume(): void;
   close(): void;
+  replaceTrack(options: { track: MediaStreamTrack | null }): Promise<void>;
 }
 
 /** Señalización que B-Talk expone para el transporte (createWebRtcTransport / connectTransport / produce). */
@@ -258,11 +263,18 @@ export class BTalkMediaAdapter implements MediaTransportAdapter {
   constructor(
     private readonly device: MediasoupDeviceLike,
     private readonly signaling: BTalkTransportSignaling,
+    /** Servidores STUN/TURN para clientes tras NAT/CGNAT (los entrega el servidor, nunca el código). */
+    private readonly iceServers: RTCIceServer[] = [],
   ) {}
+
+  get transportId(): string | null {
+    return this.transport?.id ?? null;
+  }
 
   async createSendTransport(params: unknown): Promise<void> {
     if (!this.device.loaded) await this.device.load({ routerRtpCapabilities: await this.signaling.routerRtpCapabilities() });
-    const transportParams = params ?? (await this.signaling.createWebRtcTransport());
+    const base = (params ?? (await this.signaling.createWebRtcTransport())) as Record<string, unknown>;
+    const transportParams = this.iceServers.length ? { ...base, iceServers: this.iceServers } : base;
     const transport = this.device.createSendTransport(transportParams);
     transport.on('connect', ({ dtlsParameters }, callback, errback) => {
       this.signaling.connectTransport(transport.id, dtlsParameters).then(callback, errback);
@@ -274,10 +286,10 @@ export class BTalkMediaAdapter implements MediaTransportAdapter {
     this.transport = transport;
   }
 
-  async produce(track: MediaStreamTrack, appData: CrowdMicAppData, options: ProduceOptions): Promise<ProducerHandle> {
+  async produce(track: MediaStreamTrack, appData: Record<string, unknown>, options: ProduceOptions): Promise<ProducerHandle> {
     if (!this.transport) throw new Error('SEND transport no creado');
     const producer = await this.transport.produce({ track, appData, codecOptions: options.codecOptions, encodings: options.encodings, stopTracks: false, zeroRtpOnPause: true });
-    producer.pause();
+    if (options.paused !== false) producer.pause();
     return {
       id: producer.id,
       get paused() {
@@ -289,6 +301,7 @@ export class BTalkMediaAdapter implements MediaTransportAdapter {
       pause: () => producer.pause(),
       resume: () => producer.resume(),
       close: () => producer.close(),
+      replaceTrack: (t) => producer.replaceTrack({ track: t }),
     };
   }
 

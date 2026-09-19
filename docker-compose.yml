@@ -63,6 +63,13 @@ services:
       # Secretos: solo en .env.
       CONCERT_DJ_TOKEN: ${CONCERT_DJ_TOKEN:-}
       CONCERT_ADMIN_TOKEN: ${CONCERT_ADMIN_TOKEN:-}
+      # Bingo Hit Live
+      LIVE_HOST_TOKEN: ${LIVE_HOST_TOKEN:-}
+      STUN_SERVER_URL: ${STUN_SERVER_URL:-}
+      TURN_SERVER_URL: ${TURN_SERVER_URL:-}
+      TURN_USERNAME: ${TURN_USERNAME:-}
+      TURN_CREDENTIAL: ${TURN_CREDENTIAL:-}
+      TURN_SECRET: ${TURN_SECRET:-}
     ports:
       - "${CONCERT_PORT:-3010}:3010/tcp"
       - "40000-40100:40000-40100/udp"

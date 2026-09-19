@@ -20,6 +20,8 @@ export interface SharedCard {
   i?: (number | null)[];
   /** Canal de sincronización con el anfitrión (si la partida lo tiene). */
   y?: string;
+  /** Servidor Bingo Hit Live (vídeo del animador y plano de juego por WebSocket). */
+  l?: string;
 }
 
 function bytesToBase64Url(bytes: Uint8Array): string {
@@ -58,6 +60,8 @@ export interface JoinPayload {
   y: string;
   /** Nombre de la lista. */
   t: string;
+  /** Servidor Bingo Hit Live, si el evento se transmite en directo. */
+  l?: string;
 }
 
 export function encodeJoinPayload(payload: JoinPayload): Promise<string> {

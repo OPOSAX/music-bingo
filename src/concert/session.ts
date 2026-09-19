@@ -69,7 +69,7 @@ export const TRANSPORT_EVENTS = {
 type MediasoupGlobal = { mediasoupClient?: { Device: new () => MediasoupDeviceLike & MediasoupRecvDeviceLike } };
 let mediasoupLoading: Promise<void> | null = null;
 
-async function loadMediasoupDevice(btalkUrl: string): Promise<MediasoupDeviceLike & MediasoupRecvDeviceLike> {
+export async function loadMediasoupDevice(btalkUrl: string): Promise<MediasoupDeviceLike & MediasoupRecvDeviceLike> {
   const g = globalThis as MediasoupGlobal;
   if (!g.mediasoupClient) {
     mediasoupLoading ??= new Promise<void>((resolve, reject) => {
@@ -101,7 +101,18 @@ export async function detectConcertServer(): Promise<string | null> {
   }
 }
 
+export type TransportEventNames = { readonly [K in keyof typeof TRANSPORT_EVENTS]: string };
+
+/** Envoltorio de la señalización de transporte; `names` permite reutilizarlo con otro prefijo de eventos (p. ej. `live:*`). */
+export function makeTransportSignaling(signaling: ConcertSignaling, names: TransportEventNames) {
+  return transportSignalingWith(signaling, names);
+}
+
 function transportSignaling(signaling: ConcertSignaling) {
+  return transportSignalingWith(signaling, TRANSPORT_EVENTS);
+}
+
+function transportSignalingWith(signaling: ConcertSignaling, TRANSPORT_EVENTS: TransportEventNames) {
   const unwrap = <T>(r: { ok: boolean } & Record<string, unknown>): T => {
     const { ok: _ok, ...rest } = r;
     return rest as T;

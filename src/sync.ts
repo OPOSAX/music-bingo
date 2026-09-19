@@ -199,8 +199,22 @@ export function parseSyncState(text: string): SyncState | null {
   }
 }
 
-/** Publica un mensaje en el canal. Devuelve false si no se pudo enviar. */
-export async function publishMessage(topic: string, message: unknown): Promise<boolean> {
+/** Servidor Bingo Hit Live asociado a una partida: si existe, el plano de juego va por Socket.IO además de (o en vez de) ntfy. */
+export interface LiveLink {
+  url: string;
+  event: string;
+}
+
+/** Publica un mensaje en el canal (ntfy y, si hay servidor Live, también por Socket.IO). Devuelve false si no se pudo enviar por ninguno. */
+export async function publishMessage(topic: string, message: unknown, live?: LiveLink, token?: string): Promise<boolean> {
+  const viaNtfy = topic ? publishNtfy(topic, message) : Promise.resolve(false);
+  if (!live) return viaNtfy;
+  const viaSocket = import('./live/game-channel.js').then((m) => m.publishViaSocket(live, message, token)).catch(() => false);
+  const [a, b] = await Promise.all([viaNtfy.catch(() => false), viaSocket]);
+  return a || b;
+}
+
+async function publishNtfy(topic: string, message: unknown): Promise<boolean> {
   try {
     const res = await fetch(`${relayBase()}/${encodeURIComponent(topic)}`, {
       method: 'POST',
@@ -214,8 +228,8 @@ export async function publishMessage(topic: string, message: unknown): Promise<b
 }
 
 /** Publica el estado en el canal. Devuelve false si no se pudo enviar. */
-export function publishState(topic: string, state: SyncState): Promise<boolean> {
-  return publishMessage(topic, state);
+export function publishState(topic: string, state: SyncState, live?: LiveLink, token?: string): Promise<boolean> {
+  return publishMessage(topic, state, live, token);
 }
 
 export interface Subscription {
@@ -226,14 +240,36 @@ export interface Subscription {
  * Se suscribe al canal y entrega el estado más reciente (incluido el histórico guardado
  * en el servidor, para que un jugador que llega tarde vea las canciones ya cantadas).
  */
-export function subscribeState(topic: string, onState: (state: SyncState) => void, onStatus?: (online: boolean) => void): Subscription {
+export function subscribeState(topic: string, onState: (state: SyncState) => void, onStatus?: (online: boolean) => void, live?: LiveLink): Subscription {
   return subscribeTopic(topic, (msg) => {
     if (msg.k === 'state') onState(msg.state);
-  }, onStatus);
+  }, onStatus, live);
 }
 
-/** Se suscribe a todos los mensajes del canal (estado, pool y peticiones), incluido el histórico. */
-export function subscribeTopic(topic: string, onMessage: (message: SyncMessage) => void, onStatus?: (online: boolean) => void): Subscription {
+/**
+ * Se suscribe a todos los mensajes del canal (estado, pool y peticiones), incluido el histórico.
+ * Con servidor Live la suscripción va por Socket.IO (los jugadores) o por ambos canales (el anfitrión, con token).
+ */
+export function subscribeTopic(topic: string, onMessage: (message: SyncMessage) => void, onStatus?: (online: boolean) => void, live?: LiveLink, token?: string): Subscription {
+  if (!live) return subscribeNtfy(topic, onMessage, onStatus);
+  let socketSub: { close(): void } | null = null;
+  let closed = false;
+  void import('./live/game-channel.js').then((m) => {
+    if (closed) return;
+    socketSub = m.subscribeViaSocket(live, (msg) => { if (msg.k !== 'cfg') onMessage(msg); }, onStatus, token);
+  });
+  // El anfitrión sigue escuchando ntfy para los jugadores que se unieron sin servidor Live.
+  const ntfySub = token && topic ? subscribeNtfy(topic, onMessage) : null;
+  return {
+    close: () => {
+      closed = true;
+      socketSub?.close();
+      ntfySub?.close();
+    },
+  };
+}
+
+function subscribeNtfy(topic: string, onMessage: (message: SyncMessage) => void, onStatus?: (online: boolean) => void): Subscription {
   const url = `${relayBase()}/${encodeURIComponent(topic)}/sse?since=all`;
   const source = new EventSource(url);
   let latestState = 0;

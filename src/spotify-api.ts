@@ -25,7 +25,8 @@ export interface PlaylistSummary {
   id: string;
   name: string;
   owner: string;
-  trackCount: number;
+  /** Número de canciones, o null si la API no lo informa. */
+  trackCount: number | null;
   image: string | null;
 }
 
@@ -109,41 +110,35 @@ export function getMe(): Promise<SpotifyUser> {
   return request<SpotifyUser>('/me');
 }
 
-export async function getMyPlaylists(): Promise<PlaylistSummary[]> {
-  interface ApiPlaylist {
-    id: string;
-    name: string;
-    owner: { display_name?: string; id: string };
-    tracks?: { total: number } | null;
-    images?: { url: string }[] | null;
-  }
-  const items = await paginate<ApiPlaylist | null>('/me/playlists?limit=50');
-  return items
-    .filter((p): p is ApiPlaylist => p !== null)
-    .map((p) => ({
-      id: p.id,
-      name: p.name,
-      owner: p.owner.display_name || p.owner.id,
-      trackCount: p.tracks?.total ?? 0,
-      image: p.images?.[0]?.url ?? null,
-    }));
+interface ApiPlaylist {
+  id: string;
+  name: string;
+  owner?: { display_name?: string; id?: string } | null;
+  /** Nombre clásico del campo con el total de canciones. */
+  tracks?: { total?: number } | null;
+  /** Nombre nuevo del campo en versiones recientes de la API. */
+  items?: { total?: number } | null;
+  images?: { url: string }[] | null;
 }
 
-export async function getPlaylistSummary(id: string): Promise<PlaylistSummary> {
-  const p = await request<{
-    id: string;
-    name: string;
-    owner: { display_name?: string; id: string };
-    tracks?: { total: number };
-    images?: { url: string }[] | null;
-  }>(`/playlists/${encodeURIComponent(id)}?fields=id,name,owner(display_name,id),tracks(total),images`);
+function toSummary(p: ApiPlaylist): PlaylistSummary {
+  const total = p.tracks?.total ?? p.items?.total;
   return {
     id: p.id,
     name: p.name,
-    owner: p.owner.display_name || p.owner.id,
-    trackCount: p.tracks?.total ?? 0,
+    owner: p.owner?.display_name || p.owner?.id || '',
+    trackCount: typeof total === 'number' ? total : null,
     image: p.images?.[0]?.url ?? null,
   };
+}
+
+export async function getMyPlaylists(): Promise<PlaylistSummary[]> {
+  const items = await paginate<ApiPlaylist | null>('/me/playlists?limit=50');
+  return items.filter((p): p is ApiPlaylist => p !== null && !!p.id).map(toSummary);
+}
+
+export function getPlaylistSummary(id: string): Promise<PlaylistSummary> {
+  return request<ApiPlaylist>(`/playlists/${encodeURIComponent(id)}`).then(toSummary);
 }
 
 function toTrack(t: ApiTrack | null | undefined): Track | null {
@@ -175,23 +170,41 @@ export function dedupeTracks(tracks: Track[]): Track[] {
   return out;
 }
 
-const TRACK_FIELDS =
-  'next,total,items(track(id,uri,name,type,is_local,duration_ms,artists(name),album(name,images(url,width))))';
+/** Elemento de una lista: la API lo llama `track` (clásico) o `item` (versiones recientes). */
+interface PlaylistItem {
+  track?: ApiTrack | null;
+  item?: ApiTrack | null;
+}
+
+function itemsToTracks(items: PlaylistItem[]): Track[] {
+  return dedupeTracks(items.map((i) => toTrack(i.track ?? i.item)).filter((t): t is Track => t !== null));
+}
 
 export async function getPlaylistTracks(
   id: string,
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<Track[]> {
-  const items = await paginate<{ track: ApiTrack | null }>(
-    `/playlists/${encodeURIComponent(id)}/tracks?limit=100&fields=${encodeURIComponent(TRACK_FIELDS)}`,
-    onProgress,
-  );
-  return dedupeTracks(items.map((i) => toTrack(i.track)).filter((t): t is Track => t !== null));
+  const encoded = encodeURIComponent(id);
+  // Se prueba primero la ruta clásica y, si no existe, la nueva.
+  const paths = [`/playlists/${encoded}/tracks?limit=100`, `/playlists/${encoded}/items?limit=100`];
+  let lastError: unknown = null;
+  for (const path of paths) {
+    try {
+      const items = await paginate<PlaylistItem>(path, onProgress);
+      const tracks = itemsToTracks(items);
+      if (tracks.length > 0 || items.length === 0) return tracks;
+    } catch (err) {
+      if (!(err instanceof SpotifyApiError && err.status === 404)) throw err;
+      lastError = err;
+    }
+  }
+  if (lastError) throw lastError;
+  return [];
 }
 
 export async function getSavedTracks(onProgress?: (loaded: number, total: number) => void): Promise<Track[]> {
-  const items = await paginate<{ track: ApiTrack | null }>('/me/tracks?limit=50', onProgress);
-  return dedupeTracks(items.map((i) => toTrack(i.track)).filter((t): t is Track => t !== null));
+  const items = await paginate<PlaylistItem>('/me/tracks?limit=50', onProgress);
+  return itemsToTracks(items);
 }
 
 export async function getDevices(): Promise<Device[]> {

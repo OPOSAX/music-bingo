@@ -97,7 +97,7 @@ crea otro SFU, no hay LiveKit ni P2P: el SFU es el mismo mediasoup de B-Talk.
 | Ruta | Contenido |
 | --- | --- |
 | `server/btalk/Room.js`, `Peer.js`, `Logger.js` | Núcleo SFU de B-Talk (`B-Talk/app/src`) copiado con dos cambios mínimos, ver `server/btalk/NOTICE.md` |
-| `server/btalk/config.js` | Recorte de `config.template.js`: workers, router (solo Opus), transports, autodetección de IP y `BTALK_ANNOUNCED_IP` |
+| `server/btalk/config.js` | Recorte de `config.template.js` (mediasoup ^3.15 por `disableLiburing`): workers, router (solo Opus), transports, autodetección de IP y `BTALK_ANNOUNCED_IP` |
 | `server/public/sfu/MediasoupClient.js` | Bundle mediasoup-client de B-Talk (`public/sfu`), servido en `/sfu/MediasoupClient.js` |
 | `server/concert-server.mjs` | Express + Socket.IO + workers mediasoup (adaptado de `Server.js`) y los handlers `concert:*` de `src/concert` |
 | `server/test/smoke.mjs` | Prueba de humo con socket.io-client: roles, PREPARE, transports, produce rechazado, CONCERT_MODE=false |

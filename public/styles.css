@@ -289,3 +289,4 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 4px 12px; }
 .check-grid .field-check { padding-bottom: 0; align-self: auto; }
 .gen-result { margin-top: 8px; }
+.selected-source { background: rgba(29, 185, 84, 0.15); border-radius: 8px; padding: 10px 12px; }

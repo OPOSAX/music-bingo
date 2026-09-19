@@ -37,6 +37,7 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
   const decadeBoxes = DECADES.map((d) => ({ id: d.id, box: h('input', { type: 'checkbox', checked: d.id === '80' || d.id === '90' }), label: d.label }));
   const genreBoxes = GENRES.map((g) => ({ id: g.id, box: h('input', { type: 'checkbox', checked: g.id === 'pop' || g.id === 'rock' }), label: g.label }));
   const countInput = h('input', { class: 'input', type: 'number', min: '10', max: '300', value: '60' });
+  const saveToSpotify = h('input', { type: 'checkbox', checked: true });
   const genStatus = h('p', { class: 'muted small' });
   const genResult = h('div', { class: 'gen-result' });
   const genBtn = button('🔎 Buscar éxitos', () => void generate(), 'btn btn-primary');
@@ -45,7 +46,7 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
     'details',
     { class: 'generator' },
     h('summary', null, '✨ Generar una lista de éxitos (por idioma, época y género)'),
-    h('div', { class: 'fields' }, h('label', { class: 'field' }, h('span', null, 'Idioma'), langSelect), h('label', { class: 'field' }, h('span', null, 'Número de canciones'), countInput)),
+    h('div', { class: 'fields' }, h('label', { class: 'field' }, h('span', null, 'Idioma'), langSelect), h('label', { class: 'field' }, h('span', null, 'Número de canciones'), countInput), h('label', { class: 'field field-check' }, saveToSpotify, h('span', null, 'Guardar la lista en mi Spotify'))),
     h('p', { class: 'muted small' }, 'Épocas'),
     checks(decadeBoxes),
     h('p', { class: 'muted small' }, 'Géneros'),
@@ -88,7 +89,18 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
       genStatus.textContent = `${tracks.length} canciones encontradas${tracks.length < options.count ? ` (se pedían ${options.count}: amplía épocas o géneros para más)` : ''}.`;
       const sample = tracks.slice(0, 8).map((t) => `${t.name} — ${t.artists}`).join(' · ');
       genResult.appendChild(h('p', { class: 'small' }, sample, tracks.length > 8 ? ' · …' : ''));
-      genResult.appendChild(button(`Usar esta lista (${tracks.length} canciones)`, () => select({ kind: 'generated', id: `generated-${Date.now()}`, name, trackCount: tracks.length, tracks }), 'btn btn-primary'));
+      genResult.appendChild(
+        button(`Usar esta lista (${tracks.length} canciones)`, () => {
+          select({ kind: 'generated', id: `generated-${Date.now()}`, name, trackCount: tracks.length, tracks });
+          generator.open = false;
+          if (saveToSpotify.checked) {
+            api
+              .createPlaylist(name, 'Creada por Bingo musical', tracks)
+              .then(() => toast(`Lista "${name}" guardada en tu Spotify`, 'success'))
+              .catch((err) => toast(`No se pudo guardar la lista en Spotify: ${errorMessage(err)}. Si acabas de actualizar la app, cierra sesión y vuelve a conectar para conceder el permiso.`, 'error'));
+          }
+        }, 'btn btn-primary'),
+      );
     } catch (err) {
       genStatus.textContent = `No se pudo buscar en Spotify: ${errorMessage(err)}`;
     } finally {
@@ -100,22 +112,25 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
     'section',
     { class: 'panel' },
     h('h2', null, '1. Elige la lista de canciones'),
+    selectedLabel,
     generator,
     h('p', { class: 'muted small' }, 'O pega una URL de lista:'),
     urlForm,
     h('p', { class: 'muted small' }, 'O elige una de tus listas:'),
     playlistGrid,
-    selectedLabel,
   );
   root.appendChild(step1);
 
   const select = (source: Source) => {
     selected = source;
     clear(selectedLabel);
-    selectedLabel.appendChild(h('strong', null, `Lista seleccionada: ${source.name}`));
+    selectedLabel.className = 'selected-source';
+    selectedLabel.appendChild(h('strong', null, `✅ Lista seleccionada: ${source.name}`));
     if (source.trackCount !== null) selectedLabel.appendChild(h('span', { class: 'muted' }, ` · ${source.trackCount} canciones`));
     playlistGrid.querySelectorAll('.playlist-item').forEach((el) => el.classList.toggle('selected', (el as HTMLElement).dataset.id === source.id));
     updateHint();
+    toast(`Lista seleccionada: ${source.name}`, 'success');
+    optionsPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   urlForm.addEventListener('submit', async (ev) => {
@@ -190,15 +205,14 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
   updateHint();
 
   const field = (label: string, control: HTMLElement) => h('label', { class: 'field' }, h('span', null, label), control);
-  root.appendChild(
-    h(
+  const optionsPanel = h(
       'section',
       { class: 'panel' },
       h('h2', null, '2. Opciones'),
       h('div', { class: 'fields' }, field('Tamaño de la tarjeta', gridSelect), h('label', { class: 'field field-check' }, freeCenter, h('span', null, 'Casilla central libre')), field('Número de tarjetas', cardCount), field('Segundos por canción', snippet), field('Por dónde empieza el fragmento', startMode), field('Tarjetas escaneadas (móvil)', autoMark), h('label', { class: 'field field-check' }, lyrics, h('span', null, 'Mostrar la letra (karaoke)')), h('label', { class: 'field field-check' }, continuous, h('span', null, 'Reproducción continua: la canción sigue hasta la siguiente (recomendado si suena en un móvil)'))),
       hint,
-    ),
   );
+  root.appendChild(optionsPanel);
 
   /* ---- Paso 3: crear ---- */
   const status = h('p', { class: 'muted' });

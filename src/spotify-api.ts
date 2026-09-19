@@ -318,6 +318,29 @@ export async function pause(deviceId: string): Promise<void> {
   }
 }
 
+/** Crea una lista privada en la cuenta del usuario y añade las canciones. Devuelve el id de la lista. */
+export async function createPlaylist(name: string, description: string, tracks: Track[]): Promise<string> {
+  let created: { id: string };
+  try {
+    created = await request<{ id: string }>('/me/playlists', { method: 'POST', body: JSON.stringify({ name, description, public: false }) });
+  } catch (err) {
+    if (!(err instanceof SpotifyApiError && err.status === 404)) throw err;
+    const me = await getMe();
+    created = await request<{ id: string }>(`/users/${encodeURIComponent(me.id)}/playlists`, { method: 'POST', body: JSON.stringify({ name, description, public: false }) });
+  }
+  const uris = tracks.map((t) => t.uri);
+  for (let i = 0; i < uris.length; i += 100) {
+    const body = JSON.stringify({ uris: uris.slice(i, i + 100) });
+    try {
+      await request<void>(`/playlists/${encodeURIComponent(created.id)}/items`, { method: 'POST', body });
+    } catch (err) {
+      if (!(err instanceof SpotifyApiError && err.status === 404)) throw err;
+      await request<void>(`/playlists/${encodeURIComponent(created.id)}/tracks`, { method: 'POST', body });
+    }
+  }
+  return created.id;
+}
+
 /** Extrae el ID de una lista a partir de una URL, un URI o el propio ID. */
 export function parsePlaylistInput(input: string): string | null {
   const text = input.trim();

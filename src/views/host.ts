@@ -9,11 +9,12 @@ import * as api from '../spotify-api.js';
 import type { GameState } from '../store.js';
 import { calledSet, cardName, cardTitle, currentTrackIndex, gameCards, loadGame, saveGame, setCardName } from '../store.js';
 import { renderCardGrid } from './card-grid.js';
-import { buildSyncState, newTopic, publishState, relayBase, type AutoMark } from '../sync.js';
+import { buildSyncState, newTopic, poolChunks, publishMessage, publishState, relayBase, subscribeTopic, type AutoMark, type Subscription } from '../sync.js';
 import { createLyricsPanel, lyricsToggle } from './lyrics-panel.js';
 
 let snippetPlayer: SnippetPlayer | null = null;
 let browserPlayer: Spotify.Player | null = null;
+let claimSubscription: Subscription | null = null;
 
 const PREFERRED_DEVICE_KEY = 'musicbingo:device';
 
@@ -277,9 +278,43 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       h('div', { class: 'fields' }, h('label', { class: 'field' }, h('span', null, 'Marcado automático'), autoMarkSelect), h('label', { class: 'field field-check' }, lyricsCheck, h('span', null, 'Letra de la canción (karaoke) en las tarjetas'))),
       messageForm,
       h('p', null, h('strong', null, 'Estado: '), syncStatus),
-      h('p', { class: 'muted small' }, `Canal: ${relayBase()}`),
+      h('p', { class: 'muted small' }, `Canal: ${relayBase()} · `, button('Reenviar la lista de canciones', () => void publishPool(true).then(() => toast('Lista reenviada', 'success')), 'btn btn-link')),
     ),
   );
+
+  /** Publica la lista de canciones (una vez) para que el QR único pueda construir las tarjetas. */
+  async function publishPool(force = false): Promise<void> {
+    if (game.poolPublishedAt && !force) return;
+    const chunks = poolChunks(game.config.seed, game.tracks.map((t) => [t.name, t.artists] as [string, string]));
+    let ok = true;
+    for (const chunk of chunks) ok = (await publishMessage(game.syncTopic as string, chunk)) && ok;
+    if (ok) {
+      game.poolPublishedAt = Date.now();
+      saveGame(game);
+    } else {
+      toast('No se pudo enviar la lista de canciones al canal; el QR único no funcionará hasta que haya conexión.', 'error');
+    }
+  }
+  void publishPool();
+
+  /** Atiende las peticiones de tarjeta de los jugadores que escanean el QR único. */
+  claimSubscription?.close();
+  claimSubscription = subscribeTopic(game.syncTopic as string, (msg) => {
+    if (msg.k !== 'claim' || msg.seed !== game.config.seed) return;
+    if (!Number.isInteger(msg.index) || msg.index < 0 || msg.index >= game.config.cardCount) return;
+    const claims = { ...(game.claims ?? {}) };
+    const current = claims[String(msg.index)];
+    if (current && current.c !== msg.cid) return; // ya es de otro jugador: el solicitante probará con la siguiente
+    const already = Object.entries(claims).find(([i, v]) => v.c === msg.cid && Number(i) !== msg.index);
+    if (already) return; // este cliente ya tiene otra tarjeta asignada
+    if (current && current.n === msg.name) return; // repetición del mismo mensaje
+    claims[String(msg.index)] = { n: msg.name, c: msg.cid };
+    game.claims = claims;
+    setCardName(game, msg.index, msg.name);
+    toast(`${msg.name} se ha unido con la tarjeta ${msg.index + 1}`, 'success');
+    persist();
+  });
+  window.addEventListener('hashchange', () => { claimSubscription?.close(); claimSubscription = null; }, { once: true });
 
   let publishTimer: number | null = null;
   function publish(): void {

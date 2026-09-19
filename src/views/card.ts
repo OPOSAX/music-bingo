@@ -35,6 +35,12 @@ export async function renderPlayerCard(root: HTMLElement, params: URLSearchParam
     root.appendChild(h('section', { class: 'panel' }, h('p', { class: 'alert alert-error' }, errorMessage(err)), button('Inicio', () => navigate('/'), 'btn')));
     return;
   }
+  renderCardView(root, shared);
+}
+
+/** Pinta la tarjeta de un jugador (desde un enlace de tarjeta o desde el QR único). */
+export function renderCardView(root: HTMLElement, shared: SharedCard, playerName = ''): void {
+  clear(root);
 
   const card: Card = { index: shared.n, gridSize: shared.s, cells: shared.c.map((c, i) => (c === null ? null : i)) };
   const cells = shared.c.map((c) => (c === null ? null : { title: c[0], subtitle: c[1] }));
@@ -57,7 +63,7 @@ export async function renderPlayerCard(root: HTMLElement, params: URLSearchParam
     h(
       'header',
       { class: 'page-header' },
-      h('div', null, h('h1', null, `Tarjeta ${shared.n + 1}`), h('p', { class: 'muted' }, `Código ${label} · ${shared.t}`)),
+      h('div', null, h('h1', null, playerName ? `${playerName} · Tarjeta ${shared.n + 1}` : `Tarjeta ${shared.n + 1}`), h('p', { class: 'muted' }, `Código ${label} · ${shared.t}`)),
     ),
   );
   root.appendChild(banner);

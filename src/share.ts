@@ -42,9 +42,43 @@ async function pipeThrough(bytes: Uint8Array, stream: ReadableWritablePair<Uint8
   return new Uint8Array(buffer);
 }
 
+/** Datos del QR único de la partida: con ellos el jugador pide una tarjeta al anfitrión. */
+export interface JoinPayload {
+  v: 1;
+  /** Código de partida. */
+  g: string;
+  s: GridSize;
+  /** Casilla central libre. */
+  f: boolean;
+  /** Número de tarjetas. */
+  n: number;
+  /** Número de canciones del pool. */
+  p: number;
+  /** Canal de sincronización. */
+  y: string;
+  /** Nombre de la lista. */
+  t: string;
+}
+
+export function encodeJoinPayload(payload: JoinPayload): Promise<string> {
+  return encodeObject(payload);
+}
+
+export async function decodeJoinPayload(text: string): Promise<JoinPayload> {
+  const parsed = (await decodeObject(text)) as JoinPayload;
+  if (parsed.v !== 1 || typeof parsed.g !== 'string' || typeof parsed.y !== 'string' || !Number.isInteger(parsed.n) || !Number.isInteger(parsed.p)) {
+    throw new Error('Enlace de partida no válido.');
+  }
+  return parsed;
+}
+
 /** Codifica la tarjeta en una cadena apta para URL. Comprime si el navegador lo soporta. */
-export async function encodeSharedCard(card: SharedCard): Promise<string> {
-  const json = new TextEncoder().encode(JSON.stringify(card));
+export function encodeSharedCard(card: SharedCard): Promise<string> {
+  return encodeObject(card);
+}
+
+export async function encodeObject(value: unknown): Promise<string> {
+  const json = new TextEncoder().encode(JSON.stringify(value));
   if (typeof CompressionStream !== 'undefined') {
     try {
       const compressed = await pipeThrough(json, new CompressionStream('deflate-raw'));
@@ -57,6 +91,14 @@ export async function encodeSharedCard(card: SharedCard): Promise<string> {
 }
 
 export async function decodeSharedCard(text: string): Promise<SharedCard> {
+  const parsed = (await decodeObject(text)) as SharedCard;
+  if (parsed.v !== 1 || !Array.isArray(parsed.c) || typeof parsed.g !== 'string') {
+    throw new Error('Enlace de tarjeta no válido.');
+  }
+  return parsed;
+}
+
+export async function decodeObject(text: string): Promise<unknown> {
   const kind = text[0];
   const body = base64UrlToBytes(text.slice(1));
   let json: Uint8Array;
@@ -68,9 +110,5 @@ export async function decodeSharedCard(text: string): Promise<SharedCard> {
   } else {
     throw new Error('Enlace de tarjeta no válido.');
   }
-  const parsed = JSON.parse(new TextDecoder().decode(json)) as SharedCard;
-  if (parsed.v !== 1 || !Array.isArray(parsed.c) || typeof parsed.g !== 'string') {
-    throw new Error('Enlace de tarjeta no válido.');
-  }
-  return parsed;
+  return JSON.parse(new TextDecoder().decode(json)) as unknown;
 }

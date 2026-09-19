@@ -22,3 +22,12 @@ test('rechaza enlaces corruptos', async () => {
   await assert.rejects(decodeSharedCard('xabc'));
   await assert.rejects(decodeSharedCard('j' + btoa('{"v":2}').replace(/=+$/, '')));
 });
+
+test('codifica y decodifica el QR único de la partida', async () => {
+  const { decodeJoinPayload, encodeJoinPayload } = await import('../src/share.js');
+  const join = { v: 1 as const, g: 'ABC123', s: 5 as const, f: true, n: 20, p: 79, y: 'mbingo-abc123-00ff', t: 'Fiesta' };
+  const text = await encodeJoinPayload(join);
+  assert.ok(text.length < 160, `el QR único debe ser pequeño (${text.length})`);
+  assert.deepEqual(await decodeJoinPayload(text), join);
+  await assert.rejects(decodeJoinPayload('j' + btoa('{"v":1}').replace(/=+$/, '')));
+});

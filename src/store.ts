@@ -25,6 +25,39 @@ export interface GameState {
   messageAt?: number;
   /** Último fragmento reproducido: instante de inicio, posición en la canción y duración (ms). */
   lastPlay?: { at: number; pos: number; len: number };
+  /** Tarjetas asignadas por el QR único: índice → { n: nombre, c: id del cliente }. */
+  claims?: Record<string, { n: string; c: string }>;
+  /** Cuándo se publicó la lista de canciones en el canal (para el QR único). */
+  poolPublishedAt?: number;
+}
+
+const PLAYER_ID_KEY = 'musicbingo:playerId';
+const ASSIGNMENT_PREFIX = 'musicbingo:assignment:';
+
+/** Identificador estable de este dispositivo como jugador. */
+export function playerId(): string {
+  let id = localStorage.getItem(PLAYER_ID_KEY);
+  if (!id) {
+    const bytes = new Uint8Array(8);
+    crypto.getRandomValues(bytes);
+    id = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    localStorage.setItem(PLAYER_ID_KEY, id);
+  }
+  return id;
+}
+
+export interface Assignment {
+  index: number;
+  name: string;
+}
+
+export function loadAssignment(seed: string): Assignment | null {
+  return read<Assignment>(`${ASSIGNMENT_PREFIX}${seed}`);
+}
+
+export function saveAssignment(seed: string, assignment: Assignment | null): void {
+  if (assignment) write(`${ASSIGNMENT_PREFIX}${seed}`, assignment);
+  else localStorage.removeItem(`${ASSIGNMENT_PREFIX}${seed}`);
 }
 
 const GAME_KEY = 'musicbingo:game';

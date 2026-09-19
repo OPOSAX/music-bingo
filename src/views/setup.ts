@@ -12,7 +12,7 @@ interface Source {
   kind: 'playlist' | 'saved';
   id: string;
   name: string;
-  trackCount: number;
+  trackCount: number | null;
 }
 
 export async function renderSetup(root: HTMLElement): Promise<void> {
@@ -43,7 +43,7 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
     selected = source;
     clear(selectedLabel);
     selectedLabel.appendChild(h('strong', null, `Lista seleccionada: ${source.name}`));
-    selectedLabel.appendChild(h('span', { class: 'muted' }, ` · ${source.trackCount} canciones`));
+    if (source.trackCount !== null) selectedLabel.appendChild(h('span', { class: 'muted' }, ` · ${source.trackCount} canciones`));
     playlistGrid.querySelectorAll('.playlist-item').forEach((el) => el.classList.toggle('selected', (el as HTMLElement).dataset.id === source.id));
     updateHint();
   };
@@ -68,7 +68,7 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
     .then((playlists) => {
       clear(playlistGrid);
       playlistGrid.appendChild(
-        h('button', { class: 'playlist-item', type: 'button', dataset: { id: 'saved' }, onClick: () => select({ kind: 'saved', id: 'saved', name: 'Canciones que te gustan', trackCount: 0 }) }, h('div', { class: 'playlist-cover placeholder' }, '♥'), h('div', { class: 'playlist-meta' }, h('strong', null, 'Canciones que te gustan'), h('span', { class: 'muted small' }, 'Tu biblioteca'))),
+        h('button', { class: 'playlist-item', type: 'button', dataset: { id: 'saved' }, onClick: () => select({ kind: 'saved', id: 'saved', name: 'Canciones que te gustan', trackCount: null }) }, h('div', { class: 'playlist-cover placeholder' }, '♥'), h('div', { class: 'playlist-meta' }, h('strong', null, 'Canciones que te gustan'), h('span', { class: 'muted small' }, 'Tu biblioteca'))),
       );
       for (const p of playlists) {
         playlistGrid.appendChild(
@@ -76,7 +76,7 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
             'button',
             { class: 'playlist-item', type: 'button', dataset: { id: p.id }, onClick: () => select({ kind: 'playlist', id: p.id, name: p.name, trackCount: p.trackCount }) },
             p.image ? h('img', { class: 'playlist-cover', src: p.image, alt: '', loading: 'lazy' }) : h('div', { class: 'playlist-cover placeholder' }, '♪'),
-            h('div', { class: 'playlist-meta' }, h('strong', null, p.name), h('span', { class: 'muted small' }, `${p.owner} · ${p.trackCount} canciones`)),
+            h('div', { class: 'playlist-meta' }, h('strong', null, p.name), h('span', { class: 'muted small' }, p.trackCount !== null ? `${p.owner} · ${p.trackCount} canciones` : p.owner)),
           ),
         );
       }
@@ -102,8 +102,8 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
     const size = Number(gridSelect.value) as GridSize;
     const needed = cellCount(size, freeCenter.checked);
     const recommended = recommendedPoolSize(size, freeCenter.checked);
-    const count = selected?.trackCount ?? 0;
-    hint.textContent = `Cada tarjeta tiene ${needed} canciones. Se recomiendan al menos ${recommended} canciones en la lista` + (selected && count ? ` (la seleccionada tiene ${count}).` : '.');
+    const count = selected?.trackCount ?? null;
+    hint.textContent = `Cada tarjeta tiene ${needed} canciones. Se recomiendan al menos ${recommended} canciones en la lista` + (count !== null ? ` (la seleccionada tiene ${count}).` : '.');
     freeCenter.disabled = size % 2 === 0;
   };
   gridSelect.addEventListener('change', updateHint);

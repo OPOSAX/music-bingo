@@ -206,9 +206,9 @@ deploy/           setup-server.sh: instalación/actualización en el servidor
 
 El público canta o habla desde su móvil (`#/sing`) y el DJ decide quién suena por el PA (`#/dj`):
 lista READY masiva (100–5000 personas), 1–2 micrófonos activos, cancelación de eco por referencia
-del mixer y panel técnico A/B. Funciona en modo demo sin servidor; con un servidor **Biznet_Talk**
-(mediasoup) hace el WebRTC real. Arquitectura, integración, cableado y pruebas de carga en
-[`docs/CONCERT_MODE.md`](docs/CONCERT_MODE.md).
+del mixer y panel técnico A/B. Funciona en modo demo sin servidor; el WebRTC real lo hace el servicio
+`server/` (perfil `concert` de Docker Compose), que reutiliza el SFU mediasoup de **Biznet Talk**.
+Arquitectura, integración, cableado y pruebas de carga en [`docs/CONCERT_MODE.md`](docs/CONCERT_MODE.md).
 
 ## Limitaciones conocidas
 

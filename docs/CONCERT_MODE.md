@@ -87,65 +87,60 @@ Todos con prefijo `concert:` y acuse `{ ok, code?, message? }`:
 
 ---
 
-## 2. Integración con Biznet_Talk (qué se reutiliza y qué hay que tocar)
+## 2. Integración con Biznet_Talk: qué se reutiliza y dónde vive
 
-Este repositorio contiene **todo el módulo Concert** listo para engancharse a B-Talk; no crea otro
-SFU ni usa LiveKit ni P2P. El servidor real (mediasoup Router, WebRtcTransports, producers,
-consumers, autenticación) sigue siendo el de B-Talk.
+La regla es que **el bingo musical incorpora las piezas de B-Talk que necesita**, no al revés. No se
+crea otro SFU, no hay LiveKit ni P2P: el SFU es el mismo mediasoup de B-Talk.
 
-> **Nota de esta entrega.** El repositorio `Biznet-IT/Biznet_Talk` no era accesible desde esta
-> sesión (repositorio privado de otra organización), así que la integración del lado servidor se
-> entrega como módulo portable + checklist. Para pegarlo dentro de B-Talk hay que abrir una sesión
-> con ese repositorio.
+### Carpeta `server/` (servicio Concert)
 
-### Ficheros portables al servidor B-Talk
-
-| Fichero | Uso en B-Talk |
+| Ruta | Contenido |
 | --- | --- |
-| `src/concert/protocol.ts` | Tipos, eventos, `readConfig(process.env)` |
-| `src/concert/concert-room.ts` | Una instancia por sala: `new ConcertRoom(roomId, config, media, emitter)` |
-| `src/concert/server-handlers.ts` | `attachConcertHandlers(room, socket, role)` en el `io.on('connection')` de B-Talk y `assertCanConsume(room, role, producer.appData)` en el handler `consume` |
+| `server/btalk/Room.js`, `Peer.js`, `Logger.js` | Núcleo SFU de B-Talk (`B-Talk/app/src`) copiado con dos cambios mínimos, ver `server/btalk/NOTICE.md` |
+| `server/btalk/config.js` | Recorte de `config.template.js` (mediasoup ^3.15 por `disableLiburing`): workers, router (solo Opus), transports, autodetección de IP y `BTALK_ANNOUNCED_IP` |
+| `server/public/sfu/MediasoupClient.js` | Bundle mediasoup-client de B-Talk (`public/sfu`), servido en `/sfu/MediasoupClient.js` |
+| `server/concert-server.mjs` | Express + Socket.IO + workers mediasoup (adaptado de `Server.js`) y los handlers `concert:*` de `src/concert` |
+| `server/test/smoke.mjs` | Prueba de humo con socket.io-client: roles, PREPARE, transports, produce rechazado, CONCERT_MODE=false |
+| `server/Dockerfile` | Imagen única: compila la app, instala mediasoup y sirve todo en el puerto 3010 |
 
-`MediaControl` se implementa con el mediasoup del servidor:
+### Cambios aplicados al código de B-Talk (documentados en `NOTICE.md`)
+
+1. `Peer.createProducer(..., options)`: el producer del micrófono del público se crea con
+   `paused: true` y con su `appData` (`source: 'crowd-mic'`, `participantId`, `roomId`, `slotId`).
+2. `Room.produce(..., options)`: con `announce: false` **no** emite `newProducers` al resto de peers.
+   Nadie salvo el DJ conoce el producer; el consumo lo autoriza `assertCanConsume` (solo
+   `dj`/`admin`/`audio-engine`).
+
+### Reglas que impone `concert-server.mjs`
+
+- **Rol desde el servidor.** `socket.handshake.auth.token` se compara con `CONCERT_DJ_TOKEN` /
+  `CONCERT_ADMIN_TOKEN`; cualquier otra cosa es `participant`. El cliente nunca envía su rol.
+- **Participante:** solo `concert:create-transport{direction:'send'}` y solo en estado PREPARING; solo
+  `kind: 'audio'`; `appData` validado contra su `participantId`, sala y slot.
+- **Operador:** solo transporte `recv`; `concert:consume` pasa por `assertCanConsume`.
+- **Peers de mediasoup bajo demanda.** READY no crea `Peer` ni transporte; el router de la sala no se
+  cierra mientras queden participantes (a diferencia de `Room.removePeer` de B-Talk).
+- `CONCERT_MODE=false` ⇒ `concert:join` responde `{ok:false, code:'disabled'}`.
+- El worker de mediasoup arranca con `disableLiburing` (Docker bloquea `io_uring` y el worker moría con
+  código 40); `MEDIASOUP_LIBURING=true` lo reactiva en hosts que lo permiten.
+
+### Bug verificado en B-Talk: `getAudioConstraints()` (asignación cruzada)
+
+En `B-Talk/public/js/RoomClient.js` (líneas 1372–1373):
 
 ```js
-const media = {
-  pauseProducer: (id) => producers.get(id)?.pause(),
-  resumeProducer: (id) => producers.get(id)?.resume(),
-  closeProducer: (id) => { producers.get(id)?.close(); producers.delete(id); },
-};
-const emitter = {
-  toParticipant: (participantId, event, payload) => io.to(socketOf(participantId)).emit(event, payload),
-  toOperators: (event, payload) => io.to(`${roomId}:operators`).emit(event, payload),
-};
+echoCancellation: switchNoiseSuppression.checked,
+noiseSuppression: switchEchoCancellation.checked,
 ```
 
-### Checklist en el servidor B-Talk
+Los interruptores están intercambiados. Este módulo **no** usa esa función (los perfiles están en
+`micConstraints()` de `src/concert/media-service.ts`), así que el modo concierto no hereda el bug.
+En el repositorio de B-Talk la corrección es intercambiar las dos claves; antes de aplicarla conviene
+un test que compare cada interruptor con la restricción resultante, y no toca las videollamadas.
 
-1. **Rol desde el servidor.** `attachConcertHandlers(room, socket, role)` recibe el rol resuelto por
-   la sesión/token de B-Talk. **Nunca** se lee `role` del payload del cliente (los tests lo cubren).
-2. **Handler `produce`.** Cuando `appData.source === 'crowd-mic'`:
-   - crear el producer con `paused: true`;
-   - llamar a `room.registerProducer(participantId, producer.id, appData)`; si devuelve `false`,
-     cerrar el producer (appData inválido, participante no está en PREPARING, o duplicado).
-3. **Handler `consume`.** Antes de crear el consumer: `assertCanConsume(room, socket.role, producer.appData)`.
-   Además, **no anunciar** producers `crowd-mic` a los demás participantes (`newProducer` broadcast).
-4. **`CONCERT_MODE=false`** ⇒ `concert:join` responde `{ok:false, code:'disabled'}` y nada más se registra.
-5. **RECV transport solo para operadores.** El teléfono nunca crea RECV transport ni consume.
-6. **Cliente mediasoup.** El navegador carga `mediasoup-client` desde
-   `${BTALK_URL}/concert/mediasoup-client.js` (build ESM). Servirlo desde B-Talk (o cambiar la ruta
-   en `src/concert/session.ts`).
-7. **Servir `socket.io.esm.min.js`** (Socket.IO ya lo hace en `/socket.io/socket.io.esm.min.js`).
-8. **`getAudioConstraints()` en B-Talk (bug a verificar).** El informe de partida menciona una
-   **asignación cruzada** en esa función (p. ej. `noiseSuppression` recibiendo el valor de
-   `echoCancellation` o viceversa). Este módulo **no** usa esa función: los perfiles están en
-   `micConstraints()` (`src/concert/media-service.ts`). Al integrar, comprobar `getAudioConstraints()`
-   con un test que compare las claves de entrada y salida una a una antes de tocarla; no cambiar el
-   comportamiento de las videollamadas normales de B-Talk.
-9. **DRM.** Nada de este módulo captura ni intercepta el audio protegido de Spotify. La referencia
-   `SPOTIFY` es solo `METADATA_ONLY`.
+### DRM
 
----
+Nada captura ni intercepta el audio protegido de Spotify. La referencia `SPOTIFY` es solo metadata.
 
 ## 3. Audio: cadena, referencia y AEC
 
@@ -240,9 +235,23 @@ npm run build && npm start        # http://127.0.0.1:8888
   ver medidores y probar la grabación A/B (`rawMic`, `musicReference`, `postAEC`, `finalOutput`).
 - `#/sing` en la **misma pestaña** se conecta al mismo hub de demo.
 
-### Con B-Talk
+### Con el servidor Concert (WebRTC real)
 
-1. Variables en el servidor B-Talk (`.env`):
+```bash
+# Docker (recomendado en el servidor OVH): app + señalización + SFU en http://IP:3010/
+BTALK_ANNOUNCED_IP=158.69.117.161 CONCERT_DJ_TOKEN=un-secreto docker compose --profile concert up -d --build
+
+# Sin Docker (Node 20+, compila mediasoup en la primera instalación)
+npm ci && npm run build
+cd server && npm install && CONCERT_DJ_TOKEN=un-secreto node concert-server.mjs
+```
+
+1. Abre `http://IP:3010/#/dj`. El panel detecta que el origen es un servidor Concert y rellena
+   `BTALK_URL`; escribe el token del DJ y abre el panel.
+2. El QR del panel lleva al público a `#/sing?room=<sala>&btalk=<url>`. Los móviles necesitan
+   **HTTPS** para el micrófono: en producción pon Caddy/nginx delante con WebSocket
+   (`/socket.io/`) y deja abiertos los puertos UDP/TCP `40000-40100` de mediasoup.
+3. Variables del servidor (`.env`):
 
    ```
    CONCERT_MODE=true
@@ -252,10 +261,9 @@ npm run build && npm start        # http://127.0.0.1:8888
    CONCERT_NOISE_REDUCTION=LIGHT
    AEC_ENABLED=true
    REFERENCE_AUDIO_MODE=MIXER
+   CONCERT_DJ_TOKEN=...      # secreto del panel del DJ (si falta se genera uno por arranque y sale en el log)
+   BTALK_ANNOUNCED_IP=...    # IP pública o LAN que anuncia mediasoup
    ```
-2. En `#/dj` indicar `BTALK_URL` (p. ej. `https://talk.ejemplo.com`) y la sala. El panel guarda la
-   configuración en localStorage; nada de dominios ni secretos en el código.
-3. El QR del panel abre `#/sing?room=<sala>&btalk=<url>` en los móviles.
 
 ### Tests, lint y build
 
@@ -263,6 +271,7 @@ npm run build && npm start        # http://127.0.0.1:8888
 npm run build     # tsc estricto (lint de tipos)
 npm test          # 73 tests: bingo + concert (estado, DSP, medios, flujo completo, métricas)
 node --expose-gc scripts/concert-load-test/index.mjs --sim --ready 100,1000,5000
+cd server && npm install && npm test   # prueba de humo del servidor real (mediasoup + Socket.IO)
 ```
 
 Tests obligatorios cubiertos:
@@ -314,15 +323,15 @@ retardo; se recomienda no darle retorno en el móvil).
 - `setSinkId` en `AudioContext` requiere Chrome/Edge 110+.
 - iOS Safari: el AudioWorklet funciona, pero el teléfono del participante debe mantener la pestaña
   en primer plano mientras está LIVE (Wake Lock se solicita si está disponible).
-- La integración final con los handlers `produce/consume` de B-Talk queda pendiente de una sesión con
-  acceso a ese repositorio (ver checklist).
+- El servidor Concert necesita HTTPS delante (proxy) para que los móviles concedan el micrófono, y los
+  puertos `40000-40100` abiertos; en el sandbox de desarrollo no se pudo instalar mediasoup (sin
+  acceso a npm), así que la prueba de humo del servidor se ejecuta en la CI de GitHub.
 
 ## 9. Siguientes pasos
 
-1. Sesión con `Biznet-IT/Biznet_Talk`: pegar `concert-room` + `server-handlers`, `paused: true` en
-   `produce`, `assertCanConsume` en `consume`, servir `mediasoup-client` ESM, verificar
-   `getAudioConstraints()`.
+1. Desplegar el perfil `concert` en OVH detrás de Caddy con HTTPS y abrir `40000-40100/udp`.
 2. Prueba real con mixer + interfaz USB y grabación A/B para ajustar `taps`/`mu` del NLMS.
 3. Evaluar AEC3 (WASM) si la sala exige más de 25 dB de rechazo.
-4. Rol `audio-engine` como servicio headless (Node + mediasoup consumer) para no depender del
+4. Rol `audio-engine` como servicio headless (Node + consumer mediasoup) para no depender del
    navegador del DJ.
+5. Corregir en el repositorio de B-Talk el cruce de `getAudioConstraints()` (no afecta a este módulo).

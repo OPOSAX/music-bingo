@@ -281,3 +281,11 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
 .version { margin-top: -6px; }
 .player-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; }
 .player-list li { background: var(--panel-2); border-radius: 8px; padding: 8px 12px; }
+
+/* Generador de éxitos */
+.generator { background: var(--panel-2); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; }
+.generator summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.generator .fields { margin-top: 10px; }
+.check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 4px 12px; }
+.check-grid .field-check { padding-bottom: 0; align-self: auto; }
+.gen-result { margin-top: 8px; }

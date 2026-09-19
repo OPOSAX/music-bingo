@@ -52,6 +52,7 @@ interface ApiTrack {
   type?: string;
   is_local?: boolean;
   is_playable?: boolean;
+  popularity?: number;
   duration_ms: number;
   artists: { name: string }[];
   album: { name: string; images: { url: string; width: number | null }[] };
@@ -150,7 +151,7 @@ function toTrack(t: ApiTrack | null | undefined): Track | null {
   if (!t || !t.id || !t.uri || t.is_local || (t.type && t.type !== 'track')) return null;
   const images = t.album?.images ?? [];
   const small = images.length ? images[images.length - 1] : undefined;
-  return {
+  const track: Track = {
     id: t.id,
     uri: t.uri,
     name: t.name,
@@ -159,6 +160,16 @@ function toTrack(t: ApiTrack | null | undefined): Track | null {
     durationMs: t.duration_ms,
     image: small?.url ?? null,
   };
+  if (typeof t.popularity === 'number') track.popularity = t.popularity;
+  return track;
+}
+
+/** Busca canciones con la búsqueda de Spotify (admite filtros como year:1980-1989 o genre:rock). */
+export async function searchTracks(query: string, limit = 50, offset = 0, market?: string): Promise<Track[]> {
+  const params = new URLSearchParams({ q: query, type: 'track', limit: String(Math.min(50, limit)), offset: String(offset) });
+  if (market) params.set('market', market);
+  const data = await request<{ tracks?: { items?: (ApiTrack | null)[] } }>(`/search?${params}`);
+  return (data.tracks?.items ?? []).map((t) => toTrack(t)).filter((t): t is Track => t !== null);
 }
 
 /** Elimina duplicados (misma canción o mismo título+artista). */

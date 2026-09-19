@@ -10,6 +10,8 @@ export interface Track {
   album: string;
   durationMs: number;
   image: string | null;
+  /** Popularidad en Spotify (0-100), si la API la informa. */
+  popularity?: number;
 }
 
 export type GridSize = 3 | 4 | 5;

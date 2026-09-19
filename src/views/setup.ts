@@ -5,15 +5,18 @@ import type { AutoMark } from '../sync.js';
 import { cellCount, recommendedPoolSize, validateConfig } from '../bingo.js';
 import { button, clear, errorMessage, h, toast } from '../dom.js';
 import { randomCode } from '../rng.js';
+import { DECADES, GENRES, buildQueries, describeOptions, pickTracks, type HitsOptions, type Language } from '../hits.js';
 import { navigate } from '../router.js';
 import * as api from '../spotify-api.js';
 import { createGame, loadGame, saveGame } from '../store.js';
 
 interface Source {
-  kind: 'playlist' | 'saved';
+  kind: 'playlist' | 'saved' | 'generated';
   id: string;
   name: string;
   trackCount: number | null;
+  /** Canciones ya cargadas (listas generadas). */
+  tracks?: Track[];
 }
 
 export async function renderSetup(root: HTMLElement): Promise<void> {
@@ -29,10 +32,76 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
   const urlInput = h('input', { class: 'input', type: 'text', placeholder: 'Pega una URL de lista de Spotify (open.spotify.com/playlist/…)' });
   const urlForm = h('form', { class: 'row' }, urlInput, h('button', { class: 'btn', type: 'submit' }, 'Usar esta lista'));
 
+  /* ---- Generador de éxitos ---- */
+  const langSelect = h('select', { class: 'input' }, h('option', { value: 'es' }, 'Español'), h('option', { value: 'en' }, 'Inglés'), h('option', { value: 'both' }, 'Español e inglés'));
+  const decadeBoxes = DECADES.map((d) => ({ id: d.id, box: h('input', { type: 'checkbox', checked: d.id === '80' || d.id === '90' }), label: d.label }));
+  const genreBoxes = GENRES.map((g) => ({ id: g.id, box: h('input', { type: 'checkbox', checked: g.id === 'pop' || g.id === 'rock' }), label: g.label }));
+  const countInput = h('input', { class: 'input', type: 'number', min: '10', max: '300', value: '60' });
+  const genStatus = h('p', { class: 'muted small' });
+  const genResult = h('div', { class: 'gen-result' });
+  const genBtn = button('🔎 Buscar éxitos', () => void generate(), 'btn btn-primary');
+  const checks = (items: { id: string; box: HTMLInputElement; label: string }[]) => h('div', { class: 'check-grid' }, ...items.map((i) => h('label', { class: 'field field-check' }, i.box, h('span', null, i.label))));
+  const generator = h(
+    'details',
+    { class: 'generator' },
+    h('summary', null, '✨ Generar una lista de éxitos (por idioma, época y género)'),
+    h('div', { class: 'fields' }, h('label', { class: 'field' }, h('span', null, 'Idioma'), langSelect), h('label', { class: 'field' }, h('span', null, 'Número de canciones'), countInput)),
+    h('p', { class: 'muted small' }, 'Épocas'),
+    checks(decadeBoxes),
+    h('p', { class: 'muted small' }, 'Géneros'),
+    checks(genreBoxes),
+    h('div', { class: 'actions' }, genBtn),
+    genStatus,
+    genResult,
+  );
+
+  async function generate(): Promise<void> {
+    const options: HitsOptions = {
+      language: langSelect.value as Language,
+      decades: decadeBoxes.filter((d) => d.box.checked).map((d) => d.id),
+      genres: genreBoxes.filter((g) => g.box.checked).map((g) => g.id),
+      count: Math.max(10, Math.min(300, Number(countInput.value) || 60)),
+    };
+    const queries = buildQueries(options);
+    genBtn.disabled = true;
+    clear(genResult);
+    genStatus.textContent = `Buscando en Spotify (${queries.length} búsquedas)…`;
+    try {
+      const perQuery = Math.min(50, Math.max(20, Math.ceil((options.count * 2) / Math.max(1, queries.length))));
+      const results: Track[][] = [];
+      let failures = 0;
+      for (const [i, q] of queries.entries()) {
+        genStatus.textContent = `Buscando ${q.label || q.q}… (${i + 1}/${queries.length})`;
+        try {
+          results.push(await api.searchTracks(q.q, perQuery, 0, q.market));
+        } catch (err) {
+          failures++;
+          if (failures === queries.length) throw err;
+        }
+      }
+      const tracks = pickTracks(results, options.count);
+      if (tracks.length === 0) {
+        genStatus.textContent = 'No se encontraron canciones con esas opciones. Prueba con otros géneros o épocas.';
+        return;
+      }
+      const name = describeOptions(options);
+      genStatus.textContent = `${tracks.length} canciones encontradas${tracks.length < options.count ? ` (se pedían ${options.count}: amplía épocas o géneros para más)` : ''}.`;
+      const sample = tracks.slice(0, 8).map((t) => `${t.name} — ${t.artists}`).join(' · ');
+      genResult.appendChild(h('p', { class: 'small' }, sample, tracks.length > 8 ? ' · …' : ''));
+      genResult.appendChild(button(`Usar esta lista (${tracks.length} canciones)`, () => select({ kind: 'generated', id: `generated-${Date.now()}`, name, trackCount: tracks.length, tracks }), 'btn btn-primary'));
+    } catch (err) {
+      genStatus.textContent = `No se pudo buscar en Spotify: ${errorMessage(err)}`;
+    } finally {
+      genBtn.disabled = false;
+    }
+  }
+
   const step1 = h(
     'section',
     { class: 'panel' },
     h('h2', null, '1. Elige la lista de canciones'),
+    generator,
+    h('p', { class: 'muted small' }, 'O pega una URL de lista:'),
     urlForm,
     h('p', { class: 'muted small' }, 'O elige una de tus listas:'),
     playlistGrid,
@@ -148,7 +217,7 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
       const onProgress = (loaded: number, total: number) => {
         status.textContent = `Cargando canciones… ${loaded}/${total}`;
       };
-      const tracks: Track[] = selected.kind === 'saved' ? await api.getSavedTracks(onProgress) : await api.getPlaylistTracks(selected.id, onProgress);
+      const tracks: Track[] = selected.kind === 'generated' ? (selected.tracks ?? []) : selected.kind === 'saved' ? await api.getSavedTracks(onProgress) : await api.getPlaylistTracks(selected.id, onProgress);
       const config: GameConfig = {
         seed: randomCode(6),
         gridSize: Number(gridSelect.value) as GridSize,

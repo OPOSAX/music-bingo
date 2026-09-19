@@ -89,17 +89,24 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
       genStatus.textContent = `${tracks.length} canciones encontradas${tracks.length < options.count ? ` (se pedían ${options.count}: amplía épocas o géneros para más)` : ''}.`;
       const sample = tracks.slice(0, 8).map((t) => `${t.name} — ${t.artists}`).join(' · ');
       genResult.appendChild(h('p', { class: 'small' }, sample, tracks.length > 8 ? ' · …' : ''));
+      const useList = (andCreate: boolean) => {
+        select({ kind: 'generated', id: `generated-${Date.now()}`, name, trackCount: tracks.length, tracks });
+        generator.open = false;
+        if (saveToSpotify.checked) {
+          api
+            .createPlaylist(name, 'Creada por Bingo musical', tracks)
+            .then(() => toast(`Lista "${name}" guardada en tu Spotify`, 'success'))
+            .catch((err) => toast(`No se pudo guardar la lista en Spotify: ${errorMessage(err)}. Si acabas de actualizar la app, cierra sesión y vuelve a conectar para conceder el permiso.`, 'error'));
+        }
+        if (andCreate) void create();
+      };
       genResult.appendChild(
-        button(`Usar esta lista (${tracks.length} canciones)`, () => {
-          select({ kind: 'generated', id: `generated-${Date.now()}`, name, trackCount: tracks.length, tracks });
-          generator.open = false;
-          if (saveToSpotify.checked) {
-            api
-              .createPlaylist(name, 'Creada por Bingo musical', tracks)
-              .then(() => toast(`Lista "${name}" guardada en tu Spotify`, 'success'))
-              .catch((err) => toast(`No se pudo guardar la lista en Spotify: ${errorMessage(err)}. Si acabas de actualizar la app, cierra sesión y vuelve a conectar para conceder el permiso.`, 'error'));
-          }
-        }, 'btn btn-primary'),
+        h(
+          'div',
+          { class: 'actions' },
+          button(`▶ Crear partida con esta lista (${tracks.length} canciones)`, () => useList(true), 'btn btn-primary'),
+          button('Solo seleccionar', () => useList(false), 'btn btn-link'),
+        ),
       );
     } catch (err) {
       genStatus.textContent = `No se pudo buscar en Spotify: ${errorMessage(err)}`;

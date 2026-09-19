@@ -13,6 +13,14 @@ export async function renderHome(root: HTMLElement): Promise<void> {
   root.appendChild(
     h('section', { class: 'hero' }, h('h1', null, '🎵 Bingo musical'), h('p', { class: 'lead' }, 'Tu lista de Spotify, tus tarjetas, tu fiesta.')),
   );
+  const version = h('p', { class: 'muted small center version' });
+  root.appendChild(version);
+  void fetch('version.txt', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.text() : ''))
+    .then((v) => {
+      if (v.trim()) version.textContent = `Versión ${v.trim()}`;
+    })
+    .catch(() => undefined);
 
   if (showClientIdForm || !auth.getClientId()) {
     root.appendChild(renderClientIdForm());

@@ -261,7 +261,7 @@ export class BTalkMediaAdapter implements MediaTransportAdapter {
   ) {}
 
   async createSendTransport(params: unknown): Promise<void> {
-    if (!this.device.loaded) this.device.load({ routerRtpCapabilities: await this.signaling.routerRtpCapabilities() });
+    if (!this.device.loaded) await this.device.load({ routerRtpCapabilities: await this.signaling.routerRtpCapabilities() });
     const transportParams = params ?? (await this.signaling.createWebRtcTransport());
     const transport = this.device.createSendTransport(transportParams);
     transport.on('connect', ({ dtlsParameters }, callback, errback) => {

@@ -5,3 +5,4 @@ public/js
 .test-out
 *.log
 .env
+server/node_modules

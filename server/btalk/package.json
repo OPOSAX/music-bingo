@@ -1,0 +1,6 @@
+{
+  "name": "btalk-core",
+  "private": true,
+  "type": "commonjs",
+  "description": "Núcleo SFU reutilizado de Biznet Talk (B-Talk): Room, Peer, Logger y configuración de mediasoup."
+}

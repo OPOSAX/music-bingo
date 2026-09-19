@@ -11,8 +11,8 @@ import { DjClient } from '../dj-client.js';
 import { ConcertMediaService, LocalMediaAdapter } from '../media-service.js';
 import { ParticipantClient } from '../participant-client.js';
 import type { AudioProfile, ConcertConfig, NoiseReduction, ParticipantInfo, ReferenceAudioMode, SlotInfo, SlotState } from '../protocol.js';
-import { createConsumerAdapter, createSignaling, demoHub, endpointFromParams, isDemo, participantJoinUrl, type ConcertEndpoint } from '../session.js';
-import { loadConfig, loadDevicePrefs, saveConfig, saveDevicePrefs } from '../store.js';
+import { createConsumerAdapter, createSignaling, demoHub, detectConcertServer, endpointFromParams, isDemo, participantJoinUrl, type ConcertEndpoint } from '../session.js';
+import { loadConfig, loadDevicePrefs, loadToken, saveConfig, saveDevicePrefs, saveToken } from '../store.js';
 
 interface DjSession {
   dj: DjClient;
@@ -84,8 +84,17 @@ export async function renderDj(root: HTMLElement, params: URLSearchParams): Prom
 function renderConfigForm(root: HTMLElement, params: URLSearchParams): HTMLElement {
   const config = loadConfig();
   const endpoint = endpointFromParams(params, config);
-  const btalk = h('input', { class: 'input', type: 'url', placeholder: 'https://talk.tu-dominio.com (vacío = demo local)', value: endpoint.btalkUrl });
+  const btalk = h('input', { class: 'input', type: 'url', placeholder: 'https://servidor-concert (vacío = demo local)', value: endpoint.btalkUrl });
+  const token = h('input', { class: 'input', type: 'password', placeholder: 'CONCERT_DJ_TOKEN del servidor', value: endpoint.token ?? loadToken(), autocomplete: 'off' });
   const room = h('input', { class: 'input', type: 'text', value: endpoint.roomId, placeholder: 'ID de sala' });
+  if (!btalk.value) {
+    void detectConcertServer().then((url) => {
+      if (url && !btalk.value) {
+        btalk.value = url;
+        toast('Servidor Concert detectado en este mismo origen', 'info');
+      }
+    });
+  }
   const maxLive = h('input', { class: 'input', type: 'number', min: '1', max: '8', value: String(config.maxLiveMics) });
   const maxPrepared = h('input', { class: 'input', type: 'number', min: '1', max: '8', value: String(config.maxPreparedMics) });
   const profile = select<AudioProfile>(['SING', 'TALK'], config.audioProfile, { SING: 'SING (cantar)', TALK: 'TALK (hablar)' });
@@ -100,7 +109,8 @@ function renderConfigForm(root: HTMLElement, params: URLSearchParams): HTMLEleme
     h(
       'div',
       { class: 'fields' },
-      h('label', { class: 'field' }, 'BTALK_URL', btalk),
+      h('label', { class: 'field' }, 'BTALK_URL (servidor Concert)', btalk),
+      h('label', { class: 'field' }, 'Token del DJ', token),
       h('label', { class: 'field' }, 'Sala', room),
       h('label', { class: 'field' }, 'MAX_LIVE_MICS', maxLive),
       h('label', { class: 'field' }, 'MAX_PREPARED_MICS', maxPrepared),
@@ -126,7 +136,8 @@ function renderConfigForm(root: HTMLElement, params: URLSearchParams): HTMLEleme
     };
     saveConfig(next);
     const ep: ConcertEndpoint = { btalkUrl: next.btalkUrl, roomId: room.value.trim() || 'demo' };
-    if (endpoint.token) ep.token = endpoint.token;
+    saveToken(token.value);
+    if (token.value.trim()) ep.token = token.value.trim();
     const submit = form.querySelector('button[type=submit]') as HTMLButtonElement;
     submit.disabled = true;
     try {

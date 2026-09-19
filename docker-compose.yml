@@ -9,6 +9,9 @@
 #
 #   Desarrollo (recompila al guardar, http://127.0.0.1:8888/):
 #     docker compose --profile dev up
+#
+#   Modo concierto (Biznet Crowd Mic: app + señalización + SFU mediasoup en http://IP:3010/, ver docs/CONCERT_MODE.md):
+#     BTALK_ANNOUNCED_IP=<ip pública o LAN> CONCERT_DJ_TOKEN=<secreto> docker compose --profile concert up -d --build
 
 services:
   app:
@@ -37,6 +40,34 @@ services:
       - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+
+  concert:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    image: music-bingo-concert:latest
+    profiles: ["concert"]
+    restart: unless-stopped
+    environment:
+      # IP que mediasoup anuncia como candidato ICE (obligatoria en Docker bridge / VPS con NAT).
+      BTALK_ANNOUNCED_IP: ${BTALK_ANNOUNCED_IP:-}
+      CONCERT_MODE: ${CONCERT_MODE:-true}
+      MAX_LIVE_MICS: ${MAX_LIVE_MICS:-2}
+      MAX_PREPARED_MICS: ${MAX_PREPARED_MICS:-2}
+      CONCERT_AUDIO_PROFILE: ${CONCERT_AUDIO_PROFILE:-SING}
+      CONCERT_NOISE_REDUCTION: ${CONCERT_NOISE_REDUCTION:-LIGHT}
+      AEC_ENABLED: ${AEC_ENABLED:-true}
+      REFERENCE_AUDIO_MODE: ${REFERENCE_AUDIO_MODE:-MIXER}
+      # Secretos: solo en .env.
+      CONCERT_DJ_TOKEN: ${CONCERT_DJ_TOKEN:-}
+      CONCERT_ADMIN_TOKEN: ${CONCERT_ADMIN_TOKEN:-}
+    ports:
+      - "${CONCERT_PORT:-3010}:3010/tcp"
+      - "40000-40100:40000-40100/udp"
+      - "40000-40100:40000-40100/tcp"
+    # En Linux se puede sustituir el bloque ports por network_mode: host (mediasoup ve las NIC reales).
 
   dev:
     image: node:22-alpine

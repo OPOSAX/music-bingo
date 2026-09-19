@@ -84,3 +84,22 @@ export function loadDevicePrefs(): DevicePrefs {
 export function saveDevicePrefs(prefs: DevicePrefs): void {
   storage()?.setItem(DEVICES_KEY, JSON.stringify(prefs));
 }
+
+const TOKEN_KEY = 'concert:token';
+
+/** Token de operador (DJ): solo en sessionStorage, nunca en el código ni en enlaces compartidos. */
+export function loadToken(): string {
+  try {
+    return globalThis.sessionStorage?.getItem(TOKEN_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function saveToken(token: string): void {
+  try {
+    globalThis.sessionStorage?.setItem(TOKEN_KEY, token.trim());
+  } catch {
+    /* sin almacenamiento */
+  }
+}

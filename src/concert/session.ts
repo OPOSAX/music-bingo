@@ -62,10 +62,43 @@ export const TRANSPORT_EVENTS = {
   resumeConsumer: 'concert:resume-consumer',
 } as const;
 
-/** Carga mediasoup-client desde el propio servidor B-Talk (build ESM servida en /concert/mediasoup-client.js). */
+/**
+ * Carga el bundle mediasoup-client de B-Talk (public/sfu/MediasoupClient.js, browserify → window.mediasoupClient)
+ * que sirve el servidor Concert en /sfu/MediasoupClient.js.
+ */
+type MediasoupGlobal = { mediasoupClient?: { Device: new () => MediasoupDeviceLike & MediasoupRecvDeviceLike } };
+let mediasoupLoading: Promise<void> | null = null;
+
 async function loadMediasoupDevice(btalkUrl: string): Promise<MediasoupDeviceLike & MediasoupRecvDeviceLike> {
-  const mod = (await import(/* @vite-ignore */ `${btalkUrl}/concert/mediasoup-client.js`)) as { Device: new () => MediasoupDeviceLike & MediasoupRecvDeviceLike };
-  return new mod.Device();
+  const g = globalThis as MediasoupGlobal;
+  if (!g.mediasoupClient) {
+    mediasoupLoading ??= new Promise<void>((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = `${btalkUrl}/sfu/MediasoupClient.js`;
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => {
+        mediasoupLoading = null;
+        reject(new Error(`No se pudo cargar mediasoup-client desde ${btalkUrl}`));
+      };
+      document.head.appendChild(script);
+    });
+    await mediasoupLoading;
+  }
+  if (!g.mediasoupClient) throw new Error('mediasoup-client no disponible');
+  return new g.mediasoupClient.Device();
+}
+
+/** Comprueba si el origen actual es un servidor Concert (sirve /health con concert:true). */
+export async function detectConcertServer(): Promise<string | null> {
+  try {
+    const res = await fetch('health', { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { concert?: boolean };
+    return data.concert ? location.origin + location.pathname.replace(/\/[^/]*$/, '').replace(/\/$/, '') : null;
+  } catch {
+    return null;
+  }
 }
 
 function transportSignaling(signaling: ConcertSignaling) {

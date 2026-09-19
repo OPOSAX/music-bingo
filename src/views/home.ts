@@ -137,8 +137,8 @@ function renderConcertAccess(): HTMLElement {
   return h(
     'section',
     { class: 'panel concert-access' },
-    h('h2', null, '🎤 Biznet Crowd Mic'),
-    h('p', { class: 'muted' }, 'Modo concierto: el público canta desde su móvil y el DJ decide quién suena por el PA.'),
+    h('h2', null, '🎤 Karaoke'),
+    h('p', { class: 'muted' }, 'El público canta desde su móvil y el DJ decide quién suena por los altavoces.'),
     h('div', { class: 'actions' }, button('Panel del DJ', () => navigate('/dj'), 'btn'), button('Quiero cantar', () => navigate('/sing'), 'btn btn-primary')),
   );
 }

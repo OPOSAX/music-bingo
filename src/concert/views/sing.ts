@@ -1,4 +1,4 @@
-/** Pantalla del participante: BIZNET CROWD MIC. Un botón para estar disponible y siempre un botón para apagar. */
+/** Pantalla del participante del karaoke. Un botón para estar disponible y siempre un botón para apagar. */
 
 import { button, clear, errorMessage, h, toast } from '../../dom.js';
 import { ConcertMediaService } from '../media-service.js';
@@ -33,7 +33,7 @@ export async function renderSing(root: HTMLElement, params: URLSearchParams): Pr
   clear(root);
   const config = loadConfig();
   const endpoint = endpointFromParams(params, config);
-  root.appendChild(h('section', { class: 'hero' }, h('h1', null, '🎤 BIZNET CROWD MIC'), h('p', { class: 'lead' }, 'Canta desde tu móvil cuando el DJ te dé paso.')));
+  root.appendChild(h('section', { class: 'hero' }, h('h1', null, '🎤 Karaoke'), h('p', { class: 'lead' }, 'Canta desde tu móvil cuando el DJ te dé paso.')));
   if (isDemo(endpoint)) root.appendChild(h('p', { class: 'alert alert-warn small' }, 'Modo demo: sin servidor B-Talk configurado, esta pantalla solo se comunica con el panel del DJ abierto en esta misma pestaña.'));
 
   if (!client) {

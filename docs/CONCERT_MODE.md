@@ -1,4 +1,4 @@
-# BIZNET CROWD MIC · Concert Mode
+# Karaoke · Concert Mode
 
 Modo concierto para eventos con público: cualquier persona abre una web en su móvil, pulsa
 **ESTOY DISPONIBLE** y el DJ decide, desde su panel, quién canta o habla por el PA. Diseñado para

@@ -4,6 +4,9 @@
  */
 
 const CLIENT_ID_KEY = 'musicbingo:clientId';
+
+/** Client ID de la app registrada en el panel de Spotify (no es secreto: viaja en la URL de login). */
+export const DEFAULT_CLIENT_ID = '3c5a65d377d44d5ba71999598585e031';
 const TOKENS_KEY = 'musicbingo:tokens';
 const VERIFIER_KEY = 'musicbingo:pkce';
 
@@ -31,11 +34,18 @@ interface StoredTokens {
 export class AuthError extends Error {}
 
 export function getClientId(): string {
-  return localStorage.getItem(CLIENT_ID_KEY) ?? '';
+  return localStorage.getItem(CLIENT_ID_KEY) || DEFAULT_CLIENT_ID;
 }
 
 export function setClientId(id: string): void {
-  localStorage.setItem(CLIENT_ID_KEY, id.trim());
+  const value = id.trim();
+  if (value) localStorage.setItem(CLIENT_ID_KEY, value);
+  else localStorage.removeItem(CLIENT_ID_KEY);
+}
+
+/** Permite mostrar el formulario de Client ID aunque exista uno por defecto. */
+export function isUsingDefaultClientId(): boolean {
+  return !localStorage.getItem(CLIENT_ID_KEY);
 }
 
 /**

@@ -104,7 +104,8 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
   const autoMark = h('select', { class: 'input' }, h('option', { value: 'played' }, 'Se marcan solas cuando suena la canción'), h('option', { value: 'revealed' }, 'Se marcan solas cuando revelas el título'), h('option', { value: 'off' }, 'No: cada jugador marca a mano'));
   autoMark.value = previous?.autoMark ?? 'played';
   const lyrics = h('input', { type: 'checkbox', checked: previous?.lyrics !== false });
-  const continuous = h('input', { type: 'checkbox', checked: previous?.continuous === true });
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const continuous = h('input', { type: 'checkbox', checked: previous?.continuous ?? isMobile });
   const hint = h('p', { class: 'muted small' });
 
   const updateHint = () => {

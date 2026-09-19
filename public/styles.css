@@ -236,3 +236,26 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
 @media print {
   .card-qr { width: 30mm; height: 30mm; }
 }
+
+/* Clasificación */
+.leaderboard { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 16px; }
+.lb-row {
+  display: grid; grid-template-columns: 28px minmax(90px, 1.2fr) minmax(80px, 2fr) 52px minmax(70px, auto);
+  align-items: center; gap: 10px; width: 100%; text-align: left;
+  background: var(--panel-2); border: 1px solid transparent; border-radius: 8px; padding: 8px 10px; color: var(--text); font: inherit; cursor: pointer;
+}
+.lb-row:hover { border-color: #4a4a4a; }
+.lb-full { border-color: var(--accent); }
+.lb-line { border-color: var(--line); }
+.lb-rank { color: var(--muted); font-variant-numeric: tabular-nums; }
+.lb-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-bar { display: block; height: 10px; background: #3a3a3a; border-radius: 0 4px 4px 0; overflow: hidden; }
+.lb-bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; transition: width 0.3s; }
+.lb-value { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.lb-status { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
+.lb-full .lb-status, .lb-line .lb-status { color: var(--text); font-weight: 600; }
+.deal-name { width: min(100%, 320px); }
+@media (max-width: 600px) {
+  .lb-row { grid-template-columns: 24px minmax(70px, 1fr) minmax(60px, 1.4fr) 48px; }
+  .lb-status { grid-column: 2 / -1; }
+}

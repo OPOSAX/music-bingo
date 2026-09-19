@@ -93,7 +93,13 @@ export async function startServer(options = {}) {
     const platformAdminToken = env.PLATFORM_ADMIN_TOKEN || randomBytes(18).toString('base64url');
     if (!env.PLATFORM_ADMIN_TOKEN) log.warn('PLATFORM_ADMIN_TOKEN no definido: token del Administrador General para este arranque', { token: platformAdminToken });
     const dataFile = env.PLATFORM_DATA_FILE === 'memory' ? null : path.resolve(env.PLATFORM_DATA_FILE || path.join(here, 'data', 'platform.json'));
-    const store = new Store(dataFile);
+    let store;
+    try {
+        store = new Store(dataFile);
+    } catch (err) {
+        log.error('No se pudo abrir el almacén de la plataforma', { dataFile, error: err.message });
+        throw err;
+    }
     const publicUrl = (env.PUBLIC_URL || `http://localhost:${port}`).replace(/\/$/, '');
     const platform = new PlatformService(store, {
         env,

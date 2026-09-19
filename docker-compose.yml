@@ -83,7 +83,9 @@ services:
       TRANSBANK_ENV: ${TRANSBANK_ENV:-integration}
       MERCADOPAGO_ACCESS_TOKEN: ${MERCADOPAGO_ACCESS_TOKEN:-}
     volumes:
-      - ./server/data:/srv/server/data
+      # Volumen con nombre: conserva el propietario del contenedor (usuario "concert"); un bind mount
+      # creado por root impediría escribir platform.json y el servidor se reiniciaría en bucle.
+      - platform_data:/srv/server/data
     ports:
       # Solo accesible desde el propio servidor: Caddy o tu proxy inverso lo exponen en /sistema/.
       - "127.0.0.1:${CONCERT_PORT:-3010}:3010/tcp"
@@ -106,6 +108,7 @@ services:
     command: sh -c "npm ci --no-audit --no-fund && npm run dev"
 
 volumes:
+  platform_data:
   caddy_data:
   caddy_config:
   dev_node_modules:

@@ -5,7 +5,7 @@ import { button, clear, copyText, errorMessage, h, toast } from '../dom.js';
 import { encodeText, toSvgElement } from '../qr.js';
 import { navigate } from '../router.js';
 import type { GameState } from '../store.js';
-import { loadGame } from '../store.js';
+import { cardName, loadGame, setCardName } from '../store.js';
 import { cardShareUrl } from './cards.js';
 
 export async function renderDeal(root: HTMLElement, params: URLSearchParams): Promise<void> {
@@ -25,6 +25,8 @@ export async function renderDeal(root: HTMLElement, params: URLSearchParams): Pr
   const prevBtn = button('← Anterior', () => show(index - 1), 'btn btn-lg');
   const nextBtn = button('Siguiente tarjeta →', () => show(index + 1), 'btn btn-primary btn-lg');
   const copyBtn = button('Copiar enlace', () => void copyCurrent(), 'btn');
+  const nameInput = h('input', { class: 'input', type: 'text', placeholder: 'Nombre del jugador (opcional)', autocomplete: 'off' });
+  nameInput.addEventListener('change', () => setCardName(game, index, nameInput.value));
   const jump = h('input', { class: 'input', type: 'number', min: '1', max: String(total), value: String(index + 1) });
   jump.addEventListener('change', () => show(Number(jump.value) - 1));
 
@@ -43,7 +45,7 @@ export async function renderDeal(root: HTMLElement, params: URLSearchParams): Pr
       qrHost,
       h('p', { class: 'deal-hint' }, 'Escanea el QR con la cámara del móvil para abrir tu tarjeta. Cuando la tengas, el anfitrión pasa a la siguiente.'),
       h('div', { class: 'actions center' }, prevBtn, h('label', { class: 'field deal-jump' }, h('span', null, 'Ir a la tarjeta'), jump), nextBtn),
-      h('div', { class: 'actions center' }, copyBtn),
+      h('div', { class: 'actions center' }, h('label', { class: 'field deal-name' }, h('span', null, 'Jugador de esta tarjeta'), nameInput), copyBtn),
     ),
   );
 
@@ -67,6 +69,7 @@ export async function renderDeal(root: HTMLElement, params: URLSearchParams): Pr
     if (i < 0 || i >= total) return;
     index = i;
     jump.value = String(i + 1);
+    nameInput.value = cardName(game, i);
     history.replaceState(null, '', `#/deal?n=${i + 1}`);
     title.textContent = `Tarjeta ${i + 1} de ${total}`;
     subtitle.textContent = `Código ${cardLabel(game.config.seed, i)} · ${game.playlistName}`;

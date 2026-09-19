@@ -15,6 +15,8 @@ export interface GameState {
   position: number;
   /** Si el título de la canción actual se muestra en pantalla. */
   revealed: boolean;
+  /** Nombre del jugador de cada tarjeta (clave: índice de tarjeta). */
+  names?: Record<string, string>;
 }
 
 const GAME_KEY = 'musicbingo:game';
@@ -69,6 +71,24 @@ export function gameCards(game: GameState): Card[] {
 
 export function calledSet(game: GameState): Set<number> {
   return new Set(game.order.slice(0, game.position));
+}
+
+export function cardName(game: GameState, index: number): string {
+  return game.names?.[String(index)]?.trim() ?? '';
+}
+
+export function setCardName(game: GameState, index: number, name: string): void {
+  const names = { ...(game.names ?? {}) };
+  if (name.trim()) names[String(index)] = name.trim();
+  else delete names[String(index)];
+  game.names = names;
+  saveGame(game);
+}
+
+/** Etiqueta de una tarjeta para mostrar: nombre del jugador o "Tarjeta n". */
+export function cardTitle(game: GameState, index: number): string {
+  const name = cardName(game, index);
+  return name ? `${name} (#${index + 1})` : `Tarjeta ${index + 1}`;
 }
 
 export function currentTrackIndex(game: GameState): number | null {

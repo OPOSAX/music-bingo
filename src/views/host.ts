@@ -7,7 +7,7 @@ import { SnippetPlayer, createBrowserPlayer, snippetStart } from '../player.js';
 import { navigate } from '../router.js';
 import * as api from '../spotify-api.js';
 import type { GameState } from '../store.js';
-import { calledSet, currentTrackIndex, gameCards, loadGame, saveGame } from '../store.js';
+import { calledSet, cardName, cardTitle, currentTrackIndex, gameCards, loadGame, saveGame, setCardName } from '../store.js';
 import { renderCardGrid } from './card-grid.js';
 
 let snippetPlayer: SnippetPlayer | null = null;
@@ -98,8 +98,11 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   const gamePanel = h('section', { class: 'panel game-panel' }, h('div', { class: 'row space' }, h('h2', null, 'Canción'), counter), nowPlaying, progress, h('div', { class: 'actions' }, nextBtn, replayBtn, revealBtn, stopBtn));
   root.appendChild(gamePanel);
 
-  /* ---- Estado de las tarjetas ---- */
+  /* ---- Clasificación ---- */
   const winners = h('div', { class: 'winners' });
+  const board = h('div', { class: 'leaderboard' });
+  let showAll = false;
+  const showAllBtn = button('Ver todas las tarjetas', () => { showAll = !showAll; renderWinners(); }, 'btn btn-sm');
   const verifyInput = h('input', { class: 'input', type: 'number', min: '1', max: String(cards.length), placeholder: 'Nº de tarjeta' });
   const verifyResult = h('div', { class: 'verify-result' });
   const verifyForm = h('form', { class: 'row' }, verifyInput, h('button', { class: 'btn', type: 'submit' }, 'Comprobar'));
@@ -107,7 +110,19 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     ev.preventDefault();
     verify(Number(verifyInput.value) - 1);
   });
-  root.appendChild(h('section', { class: 'panel' }, h('h2', null, 'Tarjetas'), winners, h('h3', null, 'Comprobar una tarjeta'), verifyForm, verifyResult));
+  root.appendChild(
+    h(
+      'section',
+      { class: 'panel' },
+      h('div', { class: 'row space' }, h('h2', null, 'Clasificación'), showAllBtn),
+      h('p', { class: 'muted small' }, 'Según las canciones que han sonado, no según lo que marque cada jugador. Toca una fila para ponerle nombre.'),
+      winners,
+      board,
+      h('h3', null, 'Comprobar una tarjeta'),
+      verifyForm,
+      verifyResult,
+    ),
+  );
 
   /* ---- Historial ---- */
   const history = h('ol', { class: 'history' });
@@ -158,20 +173,48 @@ export async function renderHost(root: HTMLElement): Promise<void> {
 
   function renderWinners(): void {
     clear(winners);
+    clear(board);
     const called = calledSet(game);
-    const full: number[] = [];
-    const line: number[] = [];
-    let closest = Infinity;
-    for (const card of cards) {
-      const ev = evaluateCard(card, called);
-      if (ev.status === 'full') full.push(card.index + 1);
-      else if (ev.status === 'line') line.push(card.index + 1);
-      closest = Math.min(closest, ev.remaining);
-    }
-    const stat = (label: string, list: number[], cls: string) => h('p', { class: `stat ${cls}` }, h('strong', null, `${label}: `), list.length ? list.map((n) => `#${n}`).join(', ') : 'ninguna');
-    winners.appendChild(stat('🎉 Bingo (tarjeta completa)', full, full.length ? 'stat-full' : ''));
-    winners.appendChild(stat('➖ Línea', line, line.length ? 'stat-line' : ''));
-    if (game.position > 0 && full.length === 0) winners.appendChild(h('p', { class: 'muted small' }, `A la tarjeta más avanzada le faltan ${closest} canciones para el bingo.`));
+    const statusRank: Record<string, number> = { full: 0, line: 1, none: 2 };
+    const rows = cards
+      .map((card) => ({ card, ev: evaluateCard(card, called) }))
+      .sort((a, b) => statusRank[a.ev.status]! - statusRank[b.ev.status]! || a.ev.remaining - b.ev.remaining || b.ev.completedLines.length - a.ev.completedLines.length || a.card.index - b.card.index);
+
+    const full = rows.filter((r) => r.ev.status === 'full').map((r) => cardTitle(game, r.card.index));
+    const line = rows.filter((r) => r.ev.status === 'line').map((r) => cardTitle(game, r.card.index));
+    if (full.length) winners.appendChild(h('p', { class: 'stat stat-full' }, h('strong', null, '🎉 Bingo: '), full.join(', ')));
+    if (line.length) winners.appendChild(h('p', { class: 'stat stat-line' }, h('strong', null, '➖ Línea: '), line.join(', ')));
+
+    const total = rows[0]?.ev.marked.length ?? 0;
+    const visible = showAll ? rows : rows.slice(0, 8);
+    showAllBtn.textContent = showAll ? 'Ver solo las 8 primeras' : `Ver todas las tarjetas (${rows.length})`;
+    showAllBtn.hidden = rows.length <= 8;
+
+    visible.forEach(({ card, ev }, i) => {
+      const markedCount = ev.marked.filter(Boolean).length;
+      const pct = total ? Math.round((markedCount / total) * 100) : 0;
+      const status = ev.status === 'full' ? '🎉 Bingo' : ev.status === 'line' ? `➖ Línea ×${ev.completedLines.length}` : `Faltan ${ev.remaining}`;
+      const row = h(
+        'button',
+        {
+          class: `lb-row lb-${ev.status}`,
+          type: 'button',
+          title: 'Poner nombre al jugador',
+          onClick: () => {
+            const name = prompt(`Nombre del jugador de la tarjeta ${card.index + 1}:`, cardName(game, card.index));
+            if (name === null) return;
+            setCardName(game, card.index, name);
+            renderWinners();
+          },
+        },
+        h('span', { class: 'lb-rank' }, `${i + 1}.`),
+        h('span', { class: 'lb-name' }, cardName(game, card.index) || `Tarjeta ${card.index + 1}`, cardName(game, card.index) ? h('span', { class: 'muted small' }, ` #${card.index + 1}`) : null),
+        h('span', { class: 'lb-bar' }, h('span', { class: 'lb-bar-fill', style: { width: `${pct}%` } })),
+        h('span', { class: 'lb-value' }, `${markedCount}/${total}`),
+        h('span', { class: 'lb-status' }, status),
+      );
+      board.appendChild(row);
+    });
   }
 
   function verify(index: number): void {
@@ -184,7 +227,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     const ev = evaluateCard(card, calledSet(game));
     const highlighted = new Set(ev.completedLines.flat());
     const verdict = ev.status === 'full' ? '✅ ¡BINGO! Tarjeta completa.' : ev.status === 'line' ? `✅ Línea válida (${ev.completedLines.length}).` : `❌ Sin línea. Faltan ${ev.remaining} canciones.`;
-    verifyResult.appendChild(h('p', { class: `verdict verdict-${ev.status}` }, `${cardLabel(game.config.seed, index)}: ${verdict}`));
+    verifyResult.appendChild(h('p', { class: `verdict verdict-${ev.status}` }, `${cardTitle(game, index)} · ${cardLabel(game.config.seed, index)}: ${verdict}`));
     verifyResult.appendChild(
       renderCardGrid({
         gridSize: card.gridSize,

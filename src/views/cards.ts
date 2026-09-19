@@ -7,7 +7,7 @@ import { navigate } from '../router.js';
 import type { SharedCard } from '../share.js';
 import { encodeSharedCard } from '../share.js';
 import type { GameState } from '../store.js';
-import { gameCards, loadGame } from '../store.js';
+import { cardName, gameCards, loadGame } from '../store.js';
 import { encodeText, toSvgElement } from '../qr.js';
 import { renderCardGrid } from './card-grid.js';
 
@@ -86,7 +86,7 @@ export async function renderCards(root: HTMLElement): Promise<void> {
       h(
         'article',
         { class: 'card-sheet' },
-        h('header', { class: 'card-sheet-header' }, h('div', null, h('h3', null, `Tarjeta ${card.index + 1}`), h('span', { class: 'muted' }, `Código ${label} · ${game.playlistName}`)), qrHost),
+        h('header', { class: 'card-sheet-header' }, h('div', null, h('h3', null, `Tarjeta ${card.index + 1}${cardName(game, card.index) ? ` · ${cardName(game, card.index)}` : ''}`), h('span', { class: 'muted' }, `Código ${label} · ${game.playlistName}`)), qrHost),
         renderCardGrid({
           gridSize: card.gridSize,
           cells: card.cells.map((c) => (c === null ? null : { title: (game.tracks[c] as Track).name, subtitle: (game.tracks[c] as Track).artists })),

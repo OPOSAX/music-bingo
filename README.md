@@ -202,7 +202,7 @@ docker/           nginx.conf y Caddyfile (dominio www.paolosaxton.com)
 deploy/           setup-server.sh: instalación/actualización en el servidor
 ```
 
-## Biznet Crowd Mic (modo concierto)
+## Karaoke (modo concierto)
 
 El público canta o habla desde su móvil (`#/sing`) y el DJ decide quién suena por el PA (`#/dj`):
 lista READY masiva (100–5000 personas), 1–2 micrófonos activos, cancelación de eco por referencia

@@ -10,7 +10,7 @@
 #   Desarrollo (recompila al guardar, http://127.0.0.1:8888/):
 #     docker compose --profile dev up
 #
-#   Modo concierto (Biznet Crowd Mic: app + señalización + SFU mediasoup en http://IP:3010/, ver docs/CONCERT_MODE.md):
+#   Karaoke / modo concierto (app + señalización + SFU mediasoup en http://IP:3010/, ver docs/CONCERT_MODE.md):
 #     BTALK_ANNOUNCED_IP=<ip pública o LAN> CONCERT_DJ_TOKEN=<secreto> docker compose --profile concert up -d --build
 
 services:

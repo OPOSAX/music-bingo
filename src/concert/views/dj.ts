@@ -1,4 +1,4 @@
-/** Panel del DJ: BIZNET CROWD MIC. Lista READY, slots MIC A/B, motor de audio y panel técnico. */
+/** Panel del DJ del karaoke. Lista READY, slots MIC A/B, motor de audio y panel técnico. */
 
 import { button, clear, errorMessage, formatDuration, h, toast } from '../../dom.js';
 import { encodeText, toSvgElement } from '../../qr.js';
@@ -46,7 +46,7 @@ export async function releaseDj(): Promise<void> {
 
 export async function renderDj(root: HTMLElement, params: URLSearchParams): Promise<void> {
   clear(root);
-  root.appendChild(h('section', { class: 'page-header' }, h('h1', null, '🎤 BIZNET CROWD MIC'), h('p', { class: 'lead' }, 'Modo concierto: micrófonos del público, controlados desde aquí.')));
+  root.appendChild(h('section', { class: 'page-header' }, h('h1', null, '🎤 Karaoke'), h('p', { class: 'lead' }, 'Micrófonos del público, controlados desde aquí.')));
   if (!session) {
     root.appendChild(renderConfigForm(root, params));
     return;

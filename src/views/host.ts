@@ -42,6 +42,21 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     ),
   );
 
+  /* ---- Controles del juego (creados antes que el reproductor: setDevice los refresca al restaurar el navegador como dispositivo) ---- */
+  const counter = h('span', { class: 'counter' });
+  const nowPlaying = h('div', { class: 'now-playing' });
+  const progress = h('div', { class: 'progress' }, h('div', { class: 'progress-bar' }));
+  const progressBar = progress.firstElementChild as HTMLElement;
+  const nextBtn = button('Siguiente canción ▶', () => void next(), 'btn btn-primary btn-xl');
+  const replayBtn = button('Repetir fragmento', () => void replay(), 'btn');
+  const fromStartBtn = button('⏮ Desde el principio', () => void playCurrent(true, 0), 'btn');
+  const revealBtn = button('Revelar título', () => reveal(), 'btn');
+  const stopBtn = button('■ Parar', () => void stop(), 'btn');
+  const undoBtn = button('Deshacer última canción', () => undo(), 'btn btn-sm');
+  const lyricsPanel = createLyricsPanel();
+  const lyricsBtn = lyricsToggle(lyricsPanel);
+  let playing = false;
+
   /* ---- Reproductor ---- */
   const deviceStatus = h('p', { class: 'muted' }, 'Sin dispositivo de reproducción.');
   const deviceList = h('div', { class: 'device-list' });
@@ -203,17 +218,6 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   window.addEventListener('hashchange', () => { document.removeEventListener('visibilitychange', onVisible); stopAutoDetect(); }, { once: true });
 
   /* ---- Juego ---- */
-  const counter = h('span', { class: 'counter' });
-  const nowPlaying = h('div', { class: 'now-playing' });
-  const progress = h('div', { class: 'progress' }, h('div', { class: 'progress-bar' }));
-  const progressBar = progress.firstElementChild as HTMLElement;
-  const nextBtn = button('Siguiente canción ▶', () => void next(), 'btn btn-primary btn-xl');
-  const replayBtn = button('Repetir fragmento', () => void replay(), 'btn');
-  const fromStartBtn = button('⏮ Desde el principio', () => void playCurrent(true, 0), 'btn');
-  const revealBtn = button('Revelar título', () => reveal(), 'btn');
-  const stopBtn = button('■ Parar', () => void stop(), 'btn');
-  const lyricsPanel = createLyricsPanel();
-  const lyricsBtn = lyricsToggle(lyricsPanel);
   const gamePanel = h('section', { class: 'panel game-panel' }, h('div', { class: 'row space' }, h('h2', null, 'Canción'), counter), nowPlaying, progress, h('div', { class: 'actions' }, nextBtn, replayBtn, fromStartBtn, revealBtn, stopBtn, lyricsBtn), lyricsPanel.el);
   root.appendChild(gamePanel);
   lyricsPanel.el.hidden = game.config.lyrics === false;
@@ -337,10 +341,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   const history = h('ol', { class: 'history' });
   root.appendChild(h('section', { class: 'panel' }, h('h2', null, 'Canciones cantadas'), history));
 
-  const undoBtn = button('Deshacer última canción', () => undo(), 'btn btn-sm');
   root.appendChild(h('section', { class: 'panel muted-panel' }, h('div', { class: 'actions' }, undoBtn, button('Terminar partida', () => navigate('/'), 'btn btn-link'))));
-
-  let playing = false;
 
   function refreshControls(): void {
     const finished = game.position >= game.order.length;

@@ -3,7 +3,7 @@
 import { handleRedirect } from './auth.js';
 import { errorMessage, h, toast } from './dom.js';
 import { currentRoute, navigate, onRouteChange, type Route } from './router.js';
-import { renderPlayerCard } from './views/card.js';
+import { releaseCardSync, renderPlayerCard } from './views/card.js';
 import { renderCards } from './views/cards.js';
 import { renderDeal } from './views/deal.js';
 import { renderHome } from './views/home.js';
@@ -14,6 +14,7 @@ const root = document.getElementById('app') as HTMLElement;
 
 async function render(route: Route): Promise<void> {
   if (route.path !== '/host') releasePlayer();
+  if (route.path !== '/card') releaseCardSync();
   try {
     switch (route.path) {
       case '/':

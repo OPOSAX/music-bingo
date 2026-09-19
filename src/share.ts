@@ -16,6 +16,10 @@ export interface SharedCard {
   t: string;
   /** Celdas: [título, artista] o null si es casilla libre. */
   c: ([string, string] | null)[];
+  /** Índice de cada celda en el pool de canciones de la partida (null en la casilla libre). */
+  i?: (number | null)[];
+  /** Canal de sincronización con el anfitrión (si la partida lo tiene). */
+  y?: string;
 }
 
 function bytesToBase64Url(bytes: Uint8Array): string {

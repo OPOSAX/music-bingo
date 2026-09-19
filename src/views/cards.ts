@@ -21,7 +21,9 @@ export function cardShareUrl(game: GameState, index: number): Promise<string> {
     s: game.config.gridSize,
     t: game.playlistName,
     c: card.cells.map((c) => (c === null ? null : [(game.tracks[c] as Track).name, (game.tracks[c] as Track).artists])),
+    i: card.cells,
   };
+  if (game.syncTopic) shared.y = game.syncTopic;
   return encodeSharedCard(shared).then((payload) => `${location.origin}${location.pathname.replace(/index\.html$/, '')}#/card?d=${payload}`);
 }
 

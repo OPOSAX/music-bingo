@@ -6,7 +6,16 @@ import { button, clear, errorMessage, h, toast } from '../dom.js';
 import { navigate } from '../router.js';
 import { decodeSharedCard, type SharedCard } from '../share.js';
 import { loadMarks, saveMarks } from '../store.js';
+import { autoMarkedCells, subscribeState, type SyncState } from '../sync.js';
 import { renderCardGrid } from './card-grid.js';
+
+let subscription: { close(): void } | null = null;
+
+/** Cierra la conexión con el anfitrión al salir de la tarjeta. */
+export function releaseCardSync(): void {
+  subscription?.close();
+  subscription = null;
+}
 
 export async function renderPlayerCard(root: HTMLElement, params: URLSearchParams): Promise<void> {
   clear(root);
@@ -25,10 +34,14 @@ export async function renderPlayerCard(root: HTMLElement, params: URLSearchParam
 
   const card: Card = { index: shared.n, gridSize: shared.s, cells: shared.c.map((c, i) => (c === null ? null : i)) };
   const cells = shared.c.map((c) => (c === null ? null : { title: c[0], subtitle: c[1] }));
+  const poolIndices: (number | null)[] = shared.i ?? cells.map(() => null);
   let marks = loadMarks(shared.g, shared.n, cells.length);
   const label = cardLabel(shared.g, shared.n);
+  let syncState: SyncState | null = null;
+  let autoMarks: boolean[] = cells.map(() => false);
 
   const banner = h('div', { class: 'banner' });
+  const live = h('div', { class: 'live' });
   const gridHost = h('div', { class: 'player-grid' });
   root.appendChild(
     h(
@@ -38,8 +51,9 @@ export async function renderPlayerCard(root: HTMLElement, params: URLSearchParam
     ),
   );
   root.appendChild(banner);
+  root.appendChild(live);
   root.appendChild(gridHost);
-  root.appendChild(h('p', { class: 'muted small center' }, 'Toca una casilla cuando suene esa canción. Cuando completes una línea o la tarjeta, canta ¡BINGO! y di tu código al anfitrión.'));
+  root.appendChild(h('p', { class: 'muted small center' }, shared.y ? 'Las canciones que van sonando se marcan solas; también puedes tocar una casilla. Cuando completes una línea o la tarjeta, canta ¡BINGO! y di tu código al anfitrión.' : 'Toca una casilla cuando suene esa canción. Cuando completes una línea o la tarjeta, canta ¡BINGO! y di tu código al anfitrión.'));
   root.appendChild(
     h('div', { class: 'actions center' }, button('Borrar marcas', () => {
       if (!confirm('¿Borrar todas las marcas de esta tarjeta?')) return;
@@ -51,8 +65,21 @@ export async function renderPlayerCard(root: HTMLElement, params: URLSearchParam
 
   let lastStatus = evaluateMarks(card, marks).status;
 
+  function renderLive(online: boolean | null): void {
+    clear(live);
+    if (!shared.y) return;
+    if (!syncState) {
+      live.appendChild(h('p', { class: 'muted small' }, online === false ? '⚠️ Sin conexión con el anfitrión. Reintentando…' : '⏳ Conectando con el anfitrión…'));
+      return;
+    }
+    const n = syncState.called.length;
+    const nowText = syncState.now ? `${syncState.now.name} — ${syncState.now.artists}` : n > 0 ? `Canción nº ${n} (título sin revelar)` : 'Todavía no ha sonado ninguna canción';
+    live.appendChild(h('p', { class: 'live-now' }, h('span', { class: 'muted small' }, `${online === false ? '⚠️ Sin conexión · ' : '🔊 En directo · '}${n} cantadas`), h('br'), nowText));
+  }
+
   function render(): void {
-    const ev = evaluateMarks(card, marks);
+    const combined = marks.map((m, i) => m || autoMarks[i] === true);
+    const ev = evaluateMarks(card, combined);
     clear(gridHost);
     gridHost.appendChild(
       renderCardGrid({
@@ -61,6 +88,7 @@ export async function renderPlayerCard(root: HTMLElement, params: URLSearchParam
         marked: ev.marked,
         highlighted: new Set(ev.completedLines.flat()),
         onToggle: (i) => {
+          if (autoMarks[i]) return; // lo marcó el anfitrión: no se puede desmarcar
           marks[i] = !marks[i];
           saveMarks(shared.g, shared.n, marks);
           render();
@@ -79,4 +107,20 @@ export async function renderPlayerCard(root: HTMLElement, params: URLSearchParam
     lastStatus = ev.status;
   }
   render();
+  renderLive(null);
+
+  if (shared.y) {
+    releaseCardSync();
+    subscription = subscribeState(
+      shared.y,
+      (state) => {
+        if (state.seed !== shared.g) return;
+        syncState = state;
+        autoMarks = autoMarkedCells(poolIndices, state);
+        render();
+        renderLive(true);
+      },
+      (online) => renderLive(online),
+    );
+  }
 }

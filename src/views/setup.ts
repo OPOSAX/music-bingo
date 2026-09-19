@@ -1,6 +1,7 @@
 /** Configuración de una partida nueva: elegir lista y opciones, generar tarjetas. */
 
 import type { GameConfig, GridSize, StartMode, Track } from '../bingo.js';
+import type { AutoMark } from '../sync.js';
 import { cellCount, recommendedPoolSize, validateConfig } from '../bingo.js';
 import { button, clear, errorMessage, h, toast } from '../dom.js';
 import { randomCode } from '../rng.js';
@@ -100,6 +101,8 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
   const snippet = h('input', { class: 'input', type: 'number', min: '3', max: '120', value: String(previous?.snippetSeconds ?? 20) });
   const startMode = h('select', { class: 'input' }, h('option', { value: 'random' }, 'Punto aleatorio de la canción'), h('option', { value: 'middle' }, 'Hacia la mitad (suele ser el estribillo)'), h('option', { value: 'start' }, 'Desde el principio'));
   startMode.value = previous?.startMode ?? 'random';
+  const autoMark = h('select', { class: 'input' }, h('option', { value: 'played' }, 'Se marcan solas cuando suena la canción'), h('option', { value: 'revealed' }, 'Se marcan solas cuando revelas el título'), h('option', { value: 'off' }, 'No: cada jugador marca a mano'));
+  autoMark.value = previous?.autoMark ?? 'played';
   const hint = h('p', { class: 'muted small' });
 
   const updateHint = () => {
@@ -120,7 +123,7 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
       'section',
       { class: 'panel' },
       h('h2', null, '2. Opciones'),
-      h('div', { class: 'fields' }, field('Tamaño de la tarjeta', gridSelect), h('label', { class: 'field field-check' }, freeCenter, h('span', null, 'Casilla central libre')), field('Número de tarjetas', cardCount), field('Segundos por canción', snippet), field('Por dónde empieza el fragmento', startMode)),
+      h('div', { class: 'fields' }, field('Tamaño de la tarjeta', gridSelect), h('label', { class: 'field field-check' }, freeCenter, h('span', null, 'Casilla central libre')), field('Número de tarjetas', cardCount), field('Segundos por canción', snippet), field('Por dónde empieza el fragmento', startMode), field('Tarjetas escaneadas (móvil)', autoMark)),
       hint,
     ),
   );
@@ -150,6 +153,7 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
         cardCount: Number(cardCount.value),
         snippetSeconds: Number(snippet.value),
         startMode: startMode.value as StartMode,
+        autoMark: autoMark.value as AutoMark,
       };
       const errors = validateConfig(config, tracks.length);
       if (errors.length) {

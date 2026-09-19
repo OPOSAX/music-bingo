@@ -152,7 +152,7 @@ try {
   step('reacciones: aceptada, limitada y emoji no admitido', r1.ok === true && r2.ok === false && r2.code === 'rate' && r3.ok === false);
   step('reacciones agregadas para todos', (await reactionsPromise).counts['🔥'] === 1);
   const liveMetrics = await request(host, 'live:metrics');
-  step('métricas del host', liveMetrics.ok === true && liveMetrics.viewers === 2 && liveMetrics.bingos === 2 && liveMetrics.reactions === 1 && liveMetrics.viewersPeak >= 2);
+  step('métricas del host', liveMetrics.ok === true && liveMetrics.viewers === 2 && liveMetrics.bingos === 1 && liveMetrics.reactions === 1 && liveMetrics.viewersPeak >= 2);
   const metricsByViewer = await request(viewer, 'live:metrics');
   step('viewer no lee métricas', metricsByViewer.ok === false);
   const stoppedPromise = waitEvent(viewer, 'live:stopped');

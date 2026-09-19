@@ -3,9 +3,12 @@
  * señalización con clientes reales de socket.io-client (sin WebRTC de navegador).
  *   node server/test/smoke.mjs
  */
-import assert from 'node:assert/strict';
 import { io } from 'socket.io-client';
-import { startServer } from '../concert-server.mjs';
+
+// La config de mediasoup (btalk/config.js) lee process.env al cargarse: fijar antes de importar el servidor.
+process.env.MEDIASOUP_WORKERS = '1';
+process.env.BTALK_ANNOUNCED_IP = '127.0.0.1';
+const { startServer } = await import('../concert-server.mjs');
 
 const server = await startServer({ port: 0, env: { CONCERT_DJ_TOKEN: 'dj-secret', CONCERT_GRACE_MS: '200', MEDIASOUP_WORKERS: '1', NODE_ENV: 'production' } });
 const url = `http://127.0.0.1:${server.port}`;

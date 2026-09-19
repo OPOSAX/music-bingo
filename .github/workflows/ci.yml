@@ -59,14 +59,15 @@ jobs:
         run: docker build -f server/Dockerfile -t music-bingo-concert:ci .
       - name: Arrancar y comprobar health y app
         run: |
-          docker run -d --rm --name concert -p 3010:3010 -e CONCERT_DJ_TOKEN=ci -e BTALK_ANNOUNCED_IP=127.0.0.1 -e MEDIASOUP_WORKERS=1 music-bingo-concert:ci
+          docker run -d --name concert -p 3010:3010 -e CONCERT_DJ_TOKEN=ci -e BTALK_ANNOUNCED_IP=127.0.0.1 -e MEDIASOUP_WORKERS=1 music-bingo-concert:ci
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:3010/health | grep -q '"concert":true'; then echo OK; break; fi
             sleep 1
-            [ "$i" = 30 ] && { docker logs concert; exit 1; }
+            [ "$i" = 30 ] && { docker logs concert; docker inspect concert --format '{{.State.Status}} {{.State.ExitCode}}'; exit 1; }
           done
+          docker logs concert
           curl -fsS http://127.0.0.1:3010/ | grep -q "Bingo musical"
           curl -fsS http://127.0.0.1:3010/js/concert/views/dj.js >/dev/null
           curl -fsS http://127.0.0.1:3010/sfu/MediasoupClient.js | head -c 200 >/dev/null
           curl -fsS http://127.0.0.1:3010/socket.io/socket.io.esm.min.js | head -c 100 >/dev/null
-          docker stop concert
+          docker stop concert && docker rm concert

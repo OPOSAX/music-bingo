@@ -13,6 +13,11 @@ import { renderCardGrid } from './card-grid.js';
 let snippetPlayer: SnippetPlayer | null = null;
 let browserPlayer: Spotify.Player | null = null;
 
+/** El Web Playback SDK no funciona en navegadores móviles (Safari de iOS, Chrome de Android). */
+function isMobileBrowser(): boolean {
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+}
+
 export async function renderHost(root: HTMLElement): Promise<void> {
   clear(root);
   const loaded = loadGame();
@@ -65,6 +70,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     }
   };
 
+  const deviceHint = h('p', { class: 'muted small' });
   const refreshDevices = async () => {
     try {
       const devices = await api.getDevices();
@@ -72,19 +78,28 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       for (const d of devices) {
         deviceList.appendChild(button(`${d.is_active ? '● ' : ''}${d.name} (${d.type})`, () => setDevice(d.id, d.name), 'btn btn-sm device-btn'));
       }
-      if (devices.length === 0) toast('No hay dispositivos de Spotify activos. Abre Spotify en algún dispositivo o usa este navegador.', 'info');
+      deviceHint.textContent =
+        devices.length === 0
+          ? 'Spotify no ve ningún dispositivo. Abre la app de Spotify en el móvil, el ordenador o el altavoz, reproduce algo un segundo y vuelve a pulsar "Buscar dispositivos".'
+          : 'Elige dónde debe sonar la música. El punto ● marca el dispositivo activo ahora en Spotify.';
     } catch (err) {
       toast(errorMessage(err), 'error');
     }
   };
 
+  const mobile = isMobileBrowser();
   if (snippetPlayer && browserPlayer) {
     setDevice(snippetPlayer.deviceId, 'este navegador');
     deviceList.appendChild(h('label', { class: 'field' }, h('span', null, 'Volumen'), volume));
-  } else {
+  } else if (!mobile) {
     deviceList.appendChild(browserBtn);
   }
-  deviceList.appendChild(button('Otros dispositivos…', () => void refreshDevices(), 'btn'));
+  deviceList.appendChild(button(mobile ? '🔄 Buscar dispositivos' : 'Otros dispositivos…', () => void refreshDevices(), mobile ? 'btn btn-primary' : 'btn'));
+  playerPanel.appendChild(deviceHint);
+  if (mobile) {
+    deviceHint.textContent = 'En el móvil la música suena a través de la app de Spotify: ábrela, reproduce algo un segundo y elige aquí el dispositivo.';
+    if (!snippetPlayer) void refreshDevices();
+  }
 
   /* ---- Juego ---- */
   const counter = h('span', { class: 'counter' });
@@ -267,7 +282,15 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     } catch (err) {
       playing = false;
       refreshControls();
-      toast(errorMessage(err), 'error');
+      if (err instanceof api.SpotifyApiError && err.status === 404) {
+        toast('Spotify no encuentra el dispositivo elegido. Abre la app de Spotify en él, reproduce algo un segundo y vuelve a elegirlo en "Buscar dispositivos".', 'error');
+        snippetPlayer = null;
+        deviceStatus.textContent = 'Sin dispositivo de reproducción.';
+        deviceStatus.className = 'muted';
+        void refreshDevices();
+      } else {
+        toast(errorMessage(err), 'error');
+      }
     }
   }
 

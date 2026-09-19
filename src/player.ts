@@ -33,6 +33,9 @@ export interface BrowserPlayer {
 
 /** Crea y conecta un reproductor en el navegador. Resuelve cuando Spotify le asigna un device_id. */
 export async function createBrowserPlayer(name: string, onError: (message: string) => void): Promise<BrowserPlayer> {
+  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+    throw new Error('El reproductor del navegador no funciona en móviles. Elige un dispositivo con la app de Spotify abierta.');
+  }
   await loadSdk();
   const SpotifyNs = window.Spotify;
   if (!SpotifyNs) throw new Error('El SDK de Spotify no está disponible.');

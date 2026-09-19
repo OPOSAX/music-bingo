@@ -11,6 +11,9 @@ import { cardShareUrl } from './cards.js';
 
 /** Enlace del QR único de la partida. */
 export async function joinUrl(game: GameState): Promise<string> {
+  const base = `${location.origin}${location.pathname.replace(/index\.html$/, '')}`;
+  // Con Bingo Hit Live el enlace es corto: la partida se obtiene del servidor (/play?e=evento).
+  if (game.liveServer) return `${base}#/play?e=${encodeURIComponent(game.config.seed)}&l=${encodeURIComponent(game.liveServer)}`;
   const payload = await encodeJoinPayload({
     v: 1,
     g: game.config.seed,
@@ -21,7 +24,7 @@ export async function joinUrl(game: GameState): Promise<string> {
     y: game.syncTopic ?? '',
     t: game.playlistName,
   });
-  return `${location.origin}${location.pathname.replace(/index\.html$/, '')}#/join?d=${payload}`;
+  return `${base}#/join?d=${payload}`;
 }
 
 export async function renderDeal(root: HTMLElement, params: URLSearchParams): Promise<void> {

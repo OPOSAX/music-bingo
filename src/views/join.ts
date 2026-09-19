@@ -24,7 +24,12 @@ export async function renderJoin(root: HTMLElement, params: URLSearchParams): Pr
     root.appendChild(h('section', { class: 'panel' }, h('p', { class: 'alert alert-error' }, errorMessage(err)), button('Inicio', () => navigate('/'), 'btn')));
     return;
   }
+  await renderJoinPayload(root, join);
+}
 
+/** Flujo de unión con la partida ya decodificada (desde el QR o desde /play con servidor Live). */
+export async function renderJoinPayload(root: HTMLElement, join: JoinPayload): Promise<void> {
+  clear(root);
   const existing = loadAssignment(join.g);
   if (existing) {
     await connectAndShow(root, join, existing.name, existing.index);
@@ -35,8 +40,8 @@ export async function renderJoin(root: HTMLElement, params: URLSearchParams): Pr
   const form = h(
     'form',
     { class: 'panel' },
-    h('h1', null, '🎵 Bingo musical'),
-    h('p', { class: 'muted' }, `Partida ${join.g} · ${join.t}`),
+    h('h1', null, '🎵 Bingo Hit'),
+    h('p', { class: 'muted' }, `Partida ${join.g} · ${join.t}${join.l ? ' · 🔴 evento en directo' : ''}`),
     h('h2', null, '¿Cuál es tu nombre?'),
     h('div', { class: 'row' }, input, h('button', { class: 'btn btn-primary', type: 'submit' }, 'Entrar')),
     h('p', { class: 'muted small' }, 'Recibirás una tarjeta; las canciones que suenen se marcarán solas.'),
@@ -63,6 +68,7 @@ async function connectAndShow(root: HTMLElement, join: JoinPayload, name: string
   root.appendChild(panel);
 
   const cid = playerId();
+  const live = join.l ? { url: join.l, event: join.g } : undefined;
   const chunks = new Map<number, PoolMessage>();
   let pool: [string, string][] | null = null;
   let latestState: SyncState | null = null;
@@ -88,6 +94,7 @@ async function connectAndShow(root: HTMLElement, join: JoinPayload, name: string
       i: card.cells,
       y: join.y,
     };
+    if (join.l) shared.l = join.l;
     renderCardView(root, shared, name);
     toast(`Tarjeta ${confirmed + 1} asignada a ${name}`, 'success');
   };
@@ -96,7 +103,7 @@ async function connectAndShow(root: HTMLElement, join: JoinPayload, name: string
     requested = index;
     attempts++;
     status.textContent = `Pidiendo la tarjeta ${index + 1}…`;
-    const ok = await publishMessage(join.y, { k: 'claim', seed: join.g, index, name, cid, t: Date.now() });
+    const ok = await publishMessage(join.y, { k: 'claim', seed: join.g, index, name, cid, t: Date.now() }, live);
     if (!ok) status.textContent = 'No se pudo enviar la petición. Comprueba la conexión y recarga.';
   };
 
@@ -154,6 +161,7 @@ async function connectAndShow(root: HTMLElement, join: JoinPayload, name: string
     (online) => {
       if (!online && !done) status.textContent = 'Sin conexión con el anfitrión. Reintentando…';
     },
+    live,
   );
 
   // Si el anfitrión aún no ha publicado nada, pedimos la primera tarjeta igualmente.

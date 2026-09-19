@@ -10,6 +10,10 @@ import type { GameState } from '../store.js';
 import { calledSet, cardName, cardTitle, currentTrackIndex, gameCards, loadGame, saveGame, setCardName } from '../store.js';
 import { renderCardGrid } from './card-grid.js';
 import { buildSyncState, newTopic, poolChunks, publishMessage, publishState, relayBase, subscribeTopic, type AutoMark, type Subscription } from '../sync.js';
+import { loadToken } from '../concert/store.js';
+import { liveLinkOf, renderLiveHostPanel } from '../live/views/host-panel.js';
+import { LIVE_EVENTS, type BingoClaimed, type GameConfigMessage } from '../live/protocol.js';
+import { liveSession, releaseLiveSessions } from '../live/session.js';
 import { createLyricsPanel, lyricsToggle } from './lyrics-panel.js';
 
 let snippetPlayer: SnippetPlayer | null = null;
@@ -295,7 +299,13 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     if (game.poolPublishedAt && !force) return;
     const chunks = poolChunks(game.config.seed, game.tracks.map((t) => [t.name, t.artists] as [string, string]));
     let ok = true;
-    for (const chunk of chunks) ok = (await publishMessage(game.syncTopic as string, chunk)) && ok;
+    const live = liveLinkOf(game);
+    if (live) {
+      // Configuración de la partida para el servidor Live: valida bingos y permite entrar por /play.
+      const cfg: GameConfigMessage = { k: 'cfg', seed: game.config.seed, gridSize: game.config.gridSize, freeCenter: game.config.freeCenter, cardCount: game.config.cardCount, poolSize: game.tracks.length, topic: game.syncTopic as string, title: game.playlistName };
+      ok = (await publishMessage('', cfg, live, loadToken())) && ok;
+    }
+    for (const chunk of chunks) ok = (await publishMessage(game.syncTopic as string, chunk, live, loadToken())) && ok;
     if (ok) {
       game.poolPublishedAt = Date.now();
       saveGame(game);
@@ -308,6 +318,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   /** Atiende las peticiones de tarjeta de los jugadores que escanean el QR único. */
   claimSubscription?.close();
   claimSubscription = subscribeTopic(game.syncTopic as string, (msg) => {
+    if (msg.k === 'state' || msg.k === 'pool') return;
     if (msg.k !== 'claim' || msg.seed !== game.config.seed) return;
     if (!Number.isInteger(msg.index) || msg.index < 0 || msg.index >= game.config.cardCount) return;
     const claims = { ...(game.claims ?? {}) };
@@ -322,7 +333,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     toast(`${msg.name} se ha unido con la tarjeta ${msg.index + 1}`, 'success');
     persist();
   });
-  window.addEventListener('hashchange', () => { claimSubscription?.close(); claimSubscription = null; }, { once: true });
+  window.addEventListener('hashchange', () => { claimSubscription?.close(); claimSubscription = null; releaseLiveSessions(); }, { once: true });
 
   let publishTimer: number | null = null;
   function publish(): void {
@@ -330,12 +341,50 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     publishTimer = window.setTimeout(() => {
       publishTimer = null;
       const state = buildSyncState(game);
-      void publishState(game.syncTopic as string, state).then((ok) => {
+      void publishState(game.syncTopic as string, state, liveLinkOf(game), loadToken()).then((ok) => {
         syncStatus.textContent = ok ? `Publicado: ${state.called.length} canciones cantadas · ${new Date(state.t).toLocaleTimeString()}` : 'No se pudo publicar (sin conexión con el canal). Las tarjetas no se actualizarán hasta que vuelva.';
         syncStatus.className = ok ? 'ok small' : 'alert-error small';
       });
     }, 300);
   }
+
+  /* ---- Bingo Hit Live ---- */
+  const bingoClaims = h('ul', { class: 'feed-list bingo-claims' });
+  bingoClaims.hidden = true;
+  root.appendChild(
+    renderLiveHostPanel(game, (activated) => {
+      persist();
+      claimSubscription?.close();
+      claimSubscription = null;
+      if (activated) {
+        void publishPool(true);
+        listenBingos();
+      }
+      // El anfitrión vuelve a suscribirse con (o sin) servidor Live.
+      void renderHost(root);
+    }),
+  );
+  root.appendChild(h('section', { class: 'panel', hidden: !game.liveServer }, h('h2', null, 'Bingos cantados en directo'), bingoClaims));
+  function listenBingos(): void {
+    const live = liveLinkOf(game);
+    if (!live) return;
+    const session = liveSession(live, { token: loadToken(), name: 'Anfitrión' });
+    void session
+      .connect()
+      .then(() => {
+        session.on(LIVE_EVENTS.bingoClaimed, (c: BingoClaimed) => {
+          bingoClaims.hidden = false;
+          (bingoClaims.parentElement as HTMLElement).hidden = false;
+          const verdict = c.valid === null ? 'sin comprobar' : c.valid ? '🟢 válido' : '🔴 no válido';
+          const li = h('li', null, h('strong', null, c.name || 'Jugador'), ` · tarjeta ${c.index + 1} · ${c.kind === 'line' ? 'línea' : 'bingo'} · ${verdict} `);
+          li.appendChild(button('Anunciar ganador', () => void session.request(LIVE_EVENTS.winner, { seed: c.seed, index: c.index, name: c.name, kind: c.kind }).then(() => toast('Ganador anunciado a todos', 'success')), 'btn btn-sm btn-primary'));
+          bingoClaims.prepend(li);
+          toast(`${c.name || 'Un jugador'} canta ${c.kind === 'line' ? 'línea' : 'bingo'} (${verdict})`, 'info');
+        });
+      })
+      .catch((err) => toast(`Live: ${errorMessage(err)}`, 'error'));
+  }
+  if (game.liveServer) listenBingos();
 
   /* ---- Historial ---- */
   const history = h('ol', { class: 'history' });

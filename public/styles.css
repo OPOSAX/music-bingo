@@ -333,3 +333,50 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
 .audio-panel audio { margin-top: 4px; }
 .concert-access .actions { margin-top: 8px; }
 .concert-qr svg { max-width: 240px; }
+
+/* ---- Bingo Hit Live ---- */
+.live-video-wrap { margin: 8px 0 12px; }
+.live-frame { position: relative; aspect-ratio: 16 / 9; background: #000; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+.live-video { width: 100%; height: 100%; object-fit: cover; display: block; background: #000; }
+.live-preview { object-fit: contain; }
+.live-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); text-align: center; padding: 12px; background: linear-gradient(180deg, #1a1a1a, #0d0d0d); }
+.live-placeholder-icon { font-size: 2.5rem; margin-bottom: 4px; }
+.live-placeholder[hidden] { display: none; }
+.live-topbar { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; gap: 8px; align-items: center; pointer-events: none; }
+.live-badge { border-radius: 999px; padding: 3px 10px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.04em; background: rgba(0, 0, 0, 0.6); color: var(--muted); }
+.live-badge.live-on { background: var(--danger); color: #fff; animation: live-blink 1.6s infinite; }
+@keyframes live-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+.live-link-state { font-size: 0.75rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: rgba(0, 0, 0, 0.6); }
+.live-link-state:empty { display: none; }
+.link-reconnecting { color: var(--warn); }
+.link-interrupted, .link-offline { color: var(--danger); }
+.live-viewers { margin-left: auto; background: rgba(0, 0, 0, 0.6); padding: 3px 8px; border-radius: 999px; }
+.live-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45); }
+.live-overlay[hidden] { display: none; }
+.live-cta { box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5); }
+.cam-paused .live-video { filter: brightness(0.3) blur(6px); }
+.reaction-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.reaction-float { position: absolute; bottom: 0; font-size: 1.8rem; animation: reaction-up 2.1s ease-out forwards; opacity: 0; }
+@keyframes reaction-up { 0% { transform: translateY(0) scale(0.6); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(-160px) scale(1.2); opacity: 0; } }
+.live-reactions { display: flex; gap: 6px; justify-content: center; margin-top: 8px; }
+.reaction-btn { font-size: 1.25rem; padding: 6px 12px; }
+.live-video-wrap.live-floating .live-frame { position: fixed; top: 10px; right: 10px; width: 42vw; max-width: 260px; z-index: 50; aspect-ratio: 16 / 9; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6); cursor: pointer; }
+.live-video-wrap.live-floating .live-reactions { display: none; }
+.live-video-wrap.live-floating .live-topbar { font-size: 0.7rem; }
+.live-video-wrap.live-floating .live-overlay .btn { font-size: 0.8rem; padding: 6px 10px; }
+.bingo-btn { width: 100%; margin: 4px 0 8px; animation: pulse-btn 1.2s infinite; }
+.bingo-btn[hidden] { display: none; }
+@keyframes pulse-btn { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+.winner-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+.winner-card { background: var(--panel); border-radius: 20px; padding: 28px 24px; text-align: center; max-width: 360px; width: 100%; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7); animation: winner-pop 0.4s ease-out; }
+.winner-emoji { font-size: 3.5rem; }
+.winner-name { font-size: 1.8rem; font-weight: 800; color: var(--accent); margin: 4px 0; }
+@keyframes winner-pop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.level-meter { flex: 1; height: 10px; background: var(--panel-2); border-radius: 999px; overflow: hidden; min-width: 120px; }
+.level-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--warn) 75%, var(--danger)); transition: width 0.1s linear; }
+.info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px 16px; }
+.kv { display: flex; flex-direction: column; }
+.kv strong { word-break: break-all; }
+.bingo-claims li.ok { border-left: 3px solid var(--accent); }
+.live-panel .fields { margin-top: 8px; }
+.live-video-wrap.live-floating::before { content: ''; display: block; aspect-ratio: 16 / 9; }

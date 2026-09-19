@@ -46,12 +46,18 @@ export class BTalkConsumerAdapter implements ConsumerAdapter {
   constructor(
     private readonly device: MediasoupRecvDeviceLike,
     private readonly signaling: BTalkConsumeSignaling,
+    private readonly iceServers: RTCIceServer[] = [],
   ) {}
+
+  get transportId(): string | null {
+    return this.transport?.id ?? null;
+  }
 
   private async transportReady(): Promise<MediasoupRecvTransportLike> {
     if (this.transport) return this.transport;
     if (!this.device.loaded) await this.device.load({ routerRtpCapabilities: await this.signaling.routerRtpCapabilities() });
-    const transport = this.device.createRecvTransport(await this.signaling.createWebRtcTransport('recv'));
+    const base = (await this.signaling.createWebRtcTransport('recv')) as Record<string, unknown>;
+    const transport = this.device.createRecvTransport(this.iceServers.length ? { ...base, iceServers: this.iceServers } : base);
     transport.on('connect', ({ dtlsParameters }, callback, errback) => {
       this.signaling.connectTransport(transport.id, dtlsParameters).then(callback, errback);
     });
@@ -62,10 +68,15 @@ export class BTalkConsumerAdapter implements ConsumerAdapter {
   async consume(producerId: string): Promise<MediaStream> {
     const transport = await this.transportReady();
     const params = await this.signaling.consume(transport.id, producerId, this.device.rtpCapabilities);
-    const consumer = await transport.consume({ ...params, appData: { source: 'crowd-mic' } });
+    const consumer = await transport.consume({ ...params, appData: { producerId } });
     await this.signaling.resumeConsumer(consumer.id);
     this.consumers.set(producerId, consumer);
     return new MediaStream([consumer.track]);
+  }
+
+  /** Pista del consumer de un producer (para componer un único MediaStream con vídeo y audio). */
+  track(producerId: string): MediaStreamTrack | null {
+    return this.consumers.get(producerId)?.track ?? null;
   }
 
   close(producerId: string): void {

@@ -24,6 +24,7 @@ import { Server as SocketServer } from 'socket.io';
 import { ConcertRoom } from '../public/js/concert/concert-room.js';
 import { isCrowdMicAppData, readConfig } from '../public/js/concert/protocol.js';
 import { assertCanConsume, attachConcertHandlers } from '../public/js/concert/server-handlers.js';
+import { attachLiveHandlers, iceServersFromEnv, liveSummary } from './live.mjs';
 
 const require = createRequire(import.meta.url);
 const config = require('./btalk/config.js');
@@ -79,9 +80,10 @@ export async function startServer(options = {}) {
     const concertConfig = readConfig({ ...env, CONCERT_MODE: env.CONCERT_MODE ?? 'true' });
 
     // Tokens de operador: nunca en el código. Si falta el del DJ se genera uno por arranque y se imprime.
-    const djToken = env.CONCERT_DJ_TOKEN || randomBytes(12).toString('hex');
+    const djToken = env.CONCERT_DJ_TOKEN || env.LIVE_HOST_TOKEN || randomBytes(12).toString('hex');
+    const liveHostToken = env.LIVE_HOST_TOKEN || djToken;
     const adminToken = env.CONCERT_ADMIN_TOKEN || '';
-    if (!env.CONCERT_DJ_TOKEN) log.warn('CONCERT_DJ_TOKEN no definido: token del DJ para este arranque', { token: djToken });
+    if (!env.CONCERT_DJ_TOKEN && !env.LIVE_HOST_TOKEN) log.warn('CONCERT_DJ_TOKEN / LIVE_HOST_TOKEN no definidos: token de animador/DJ para este arranque', { token: djToken });
 
     // ---- mediasoup workers (adaptado de B-Talk Server.js createWorkers) ----
     const workers = [];
@@ -110,8 +112,13 @@ export async function startServer(options = {}) {
             uptime: process.uptime(),
             rooms: rooms.size,
             participants: [...rooms.values()].reduce((n, r) => n + r.concert.participants.size, 0),
+            live: Object.fromEntries([...rooms].map(([id, r]) => [id, liveSummary(r)]).filter(([, v]) => v)),
             workers: workers.length,
         });
+    });
+    // Configuración pública para el cliente Live (sin secretos: las credenciales TURN son temporales si hay TURN_SECRET).
+    app.get('/live/config', (_req, res) => {
+        res.json({ live: true, iceServers: iceServersFromEnv(env), maxViewersHint: Number(env.LIVE_MAX_VIEWERS) || 5000 });
     });
     app.use('/sfu', express.static(path.join(here, 'public', 'sfu'), { maxAge: '1d' }));
     if (existsSync(staticDir)) {
@@ -169,7 +176,7 @@ export async function startServer(options = {}) {
     function roleFor(socket) {
         const token = String(socket.handshake.auth?.token || '');
         if (adminToken && token === adminToken) return 'admin';
-        if (token === djToken) return 'dj';
+        if (token === djToken || token === liveHostToken) return 'dj';
         return 'participant';
     }
 
@@ -183,6 +190,8 @@ export async function startServer(options = {}) {
         log.debug('Socket connected', { socketId: socket.id, roomId, role });
 
         const detach = attachConcertHandlers(concert, socket, role, { log: (m) => log.debug(m) });
+        // Bingo Hit Live comparte sala, peer y transportes con el módulo Concert.
+        attachLiveHandlers({ io, socket, roomId, entry, btalk, ensurePeer: () => ensurePeer(), waitFor, findProducer, log: (m) => log.debug(m), env, isOperator });
         socket.on('concert:join', () => {
             if (isOperator) socket.join(opsRoom(roomId));
         });

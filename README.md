@@ -202,6 +202,13 @@ docker/           nginx.conf y Caddyfile (dominio www.paolosaxton.com)
 deploy/           setup-server.sh: instalación/actualización en el servidor
 ```
 
+## Bingo Hit Live
+
+El animador transmite cámara, micrófono y audio del evento (mixer → USB → WebRTC) y los jugadores
+lo ven encima de su cartón desde el móvil, con botón de BINGO, reacciones y anuncio de ganador.
+El vídeo va por el SFU mediasoup de Biznet Talk y el juego por Socket.IO, separados. Guía completa
+en [`docs/BINGO_HIT_LIVE.md`](docs/BINGO_HIT_LIVE.md).
+
 ## Karaoke (modo concierto)
 
 El público canta o habla desde su móvil (`#/sing`) y el DJ decide quién suena por el PA (`#/dj`):

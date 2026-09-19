@@ -12,6 +12,8 @@ import { releasePlayer, renderHost } from './views/host.js';
 import { renderSetup } from './views/setup.js';
 import { releaseDj, renderDj } from './concert/views/dj.js';
 import { releaseSing, renderSing } from './concert/views/sing.js';
+import { releaseLiveHost, renderLiveHost } from './live/views/live-host.js';
+import { renderPlay } from './live/views/play.js';
 
 const root = document.getElementById('app') as HTMLElement;
 
@@ -20,6 +22,7 @@ async function render(route: Route): Promise<void> {
   if (route.path !== '/card' && route.path !== '/join') releaseCardSync();
   if (route.path !== '/dj') await releaseDj();
   if (route.path !== '/sing') await releaseSing();
+  if (route.path !== '/live') await releaseLiveHost();
   try {
     switch (route.path) {
       case '/':
@@ -48,6 +51,12 @@ async function render(route: Route): Promise<void> {
         break;
       case '/dj':
         await renderDj(root, route.params);
+        break;
+      case '/live':
+        await renderLiveHost(root, route.params);
+        break;
+      case '/play':
+        await renderPlay(root, route.params);
         break;
       default:
         navigate('/');

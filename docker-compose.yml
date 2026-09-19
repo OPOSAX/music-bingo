@@ -3,7 +3,7 @@
 #   Producción (HTTP en 127.0.0.1:APP_PORT, detrás de tu propio nginx/Apache/proxy):
 #     docker compose up -d --build
 #
-#   Producción con HTTPS automático (Caddy + Let's Encrypt, https://www.paolosaxton.com/bingomusical/,
+#   Producción con HTTPS automático (Caddy + Let's Encrypt, https://www.bingohit.cl/sistema/,
 #   ver docker/Caddyfile; necesita los puertos 80/443 libres en el servidor):
 #     docker compose --profile https up -d --build
 #
@@ -29,7 +29,7 @@ services:
     profiles: ["https"]
     restart: unless-stopped
     depends_on:
-      - app
+      - concert
     ports:
       - "80:80"
       - "443:443"
@@ -48,7 +48,8 @@ services:
       args:
         APP_VERSION: ${APP_VERSION:-dev}
     image: music-bingo-concert:latest
-    profiles: ["concert"]
+    # "concert": solo el servidor (detrás de tu propio nginx/Apache). "https": con Caddy delante.
+    profiles: ["concert", "https"]
     restart: unless-stopped
     environment:
       # IP que mediasoup anuncia como candidato ICE (obligatoria en Docker bridge / VPS con NAT).
@@ -84,7 +85,8 @@ services:
     volumes:
       - ./server/data:/srv/server/data
     ports:
-      - "${CONCERT_PORT:-3010}:3010/tcp"
+      # Solo accesible desde el propio servidor: Caddy o tu proxy inverso lo exponen en /sistema/.
+      - "127.0.0.1:${CONCERT_PORT:-3010}:3010/tcp"
       - "40000-40100:40000-40100/udp"
       - "40000-40100:40000-40100/tcp"
     # En Linux se puede sustituir el bloque ports por network_mode: host (mediasoup ve las NIC reales).

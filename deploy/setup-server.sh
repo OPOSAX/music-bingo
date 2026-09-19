@@ -12,16 +12,20 @@
 #   ACME_EMAIL  correo para Let's Encrypt (se pide si no hay .env)
 #   PROFILE     "auto" (por defecto): Caddy si los puertos 80/443 están libres; si ya hay un
 #               nginx o Apache sirviendo otros sitios, añade a ese servidor el sitio
-#               www.paolosaxton.com con la ruta /bingomusical/ y pide el certificado con certbot.
-#               "https": fuerza Caddy.  "": solo la app en 127.0.0.1:8080 (configura tú el proxy).
+#               www.bingohit.cl con la ruta /sistema/ y pide el certificado con certbot.
+#               "https": fuerza Caddy.  "": solo el servidor en 127.0.0.1:3010 (configura tú el proxy).
+#
+# El sistema completo (app, API de la plataforma, Socket.IO y WebRTC/mediasoup) lo sirve el
+# servidor Concert (perfil "concert" de docker compose) en el puerto local 3010.
 
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/music-bingo}"
 REPO_URL="${REPO_URL:-https://github.com/OPOSAX/music-bingo.git}"
 BRANCH="${BRANCH:-main}"
-DOMAIN="www.paolosaxton.com"
-APP_URL="https://$DOMAIN/bingomusical/"
+DOMAIN="www.bingohit.cl"
+BASE_PATH="/sistema"
+APP_URL="https://$DOMAIN$BASE_PATH/"
 PROFILE="${PROFILE:-auto}"
 
 log() { printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
@@ -69,12 +73,31 @@ if [ ! -f .env ]; then
   sed -i "s/^ACME_EMAIL=.*/ACME_EMAIL=${email}/" .env
 fi
 
+# 3b. Secretos y direcciones del servidor Concert/plataforma (se generan una sola vez)
+set_env() { # clave valor
+  if grep -q "^$1=" .env; then sed -i "s|^$1=.*|$1=$2|" .env; else printf '%s=%s\n' "$1" "$2" >> .env; fi
+}
+env_value() { grep -s "^$1=" .env | cut -d= -f2- || true; }
+gen_secret() { tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32; }
+for key in PLATFORM_ADMIN_TOKEN LIVE_HOST_TOKEN CONCERT_DJ_TOKEN MOCK_PAYMENT_SECRET; do
+  v="$(env_value "$key")"
+  case "$v" in ""|cambia-*) set_env "$key" "$(gen_secret)" ;; esac
+done
+set_env PUBLIC_URL "$APP_URL"
+set_env CONCERT_PORT 3010
+public_ip="$(curl -fsS https://api.ipify.org 2>/dev/null || true)"
+[ -n "$public_ip" ] && set_env BTALK_ANNOUNCED_IP "$public_ip"
+
+
 # 4. Cortafuegos (si ufw está activo)
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
   log "Abriendo los puertos 80 y 443 en ufw"
   ufw allow 80/tcp >/dev/null
   ufw allow 443/tcp >/dev/null
   ufw allow 443/udp >/dev/null
+  # WebRTC (mediasoup)
+  ufw allow 40000:40100/udp >/dev/null
+  ufw allow 40000:40100/tcp >/dev/null
 fi
 
 # 5. Comprobación de DNS (informativa)
@@ -111,23 +134,23 @@ if [ "$PROFILE" = "https" ] && [ "$web_server" != "none" ] && [ "$web_server" !=
 fi
 
 # 7. Arrancar
-log "Construyendo y arrancando los contenedores"
-if [ -n "$PROFILE" ]; then
-  docker compose --profile "$PROFILE" up -d --build --remove-orphans
+log "Construyendo y arrancando los contenedores (la primera vez compila mediasoup: varios minutos)"
+if [ "$PROFILE" = "https" ]; then
+  docker compose --profile https up -d --build --remove-orphans
 else
-  docker compose up -d --build --remove-orphans
+  docker compose --profile concert up -d --build --remove-orphans
 fi
 docker image prune -f >/dev/null
 
-# 8. Si hay un nginx o Apache, añadir el sitio www.paolosaxton.com -> app
-APP_PORT="$(grep -s '^APP_PORT=' .env | cut -d= -f2- || true)"
-APP_PORT="$APP_PORT"
+# 8. Si hay un nginx o Apache, añadir el sitio www.bingohit.cl/sistema -> servidor Concert
+APP_PORT="$(env_value CONCERT_PORT)"
+APP_PORT="${APP_PORT:-3010}"
 if [ -d /etc/nginx/sites-available ]; then
-  NGINX_SITE="/etc/nginx/sites-available/paolosaxton.com.conf"
+  NGINX_SITE="/etc/nginx/sites-available/bingohit.cl.conf"
 else
-  NGINX_SITE="/etc/nginx/conf.d/paolosaxton.com.conf"
+  NGINX_SITE="/etc/nginx/conf.d/bingohit.cl.conf"
 fi
-APACHE_SITE="/etc/apache2/sites-available/paolosaxton.com.conf"
+APACHE_SITE="/etc/apache2/sites-available/bingohit.cl.conf"
 
 certbot_args() {
   if [ -n "$(grep -s '^ACME_EMAIL=' .env | cut -d= -f2-)" ]; then
@@ -141,36 +164,39 @@ configure_nginx() {
   log "Configurando el sitio en el nginx existente"
   if [ ! -f "$NGINX_SITE" ]; then
     cat > "$NGINX_SITE" <<NGINX
-# Bingo musical (generado por deploy/setup-server.sh). La app corre en 127.0.0.1:$APP_PORT.
+# Bingo Hit (generado por deploy/setup-server.sh). El sistema corre en 127.0.0.1:$APP_PORT.
 server {
     listen 80;
     listen [::]:80;
-    server_name $DOMAIN paolosaxton.com;
+    server_name $DOMAIN bingohit.cl;
 
-    location = /bingomusical {
-        return 301 /bingomusical/;
+    location = $BASE_PATH {
+        return 301 $BASE_PATH/;
     }
 
-    location /bingomusical/ {
+    location $BASE_PATH/ {
         proxy_pass http://127.0.0.1:$APP_PORT/;
         proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 3600s;
     }
 
-    # Raíz del dominio: de momento va al bingo. Sustituye este bloque por tu web.
+    # Raíz del dominio: de momento va al sistema. Sustituye este bloque por tu web.
     location / {
-        return 302 /bingomusical/;
+        return 302 $BASE_PATH/;
     }
 }
 NGINX
     if [ -d /etc/nginx/sites-enabled ]; then
-      ln -sf "$NGINX_SITE" /etc/nginx/sites-enabled/paolosaxton.com.conf
+      ln -sf "$NGINX_SITE" /etc/nginx/sites-enabled/bingohit.cl.conf
     fi
     if ! nginx -t; then
-      rm -f /etc/nginx/sites-enabled/paolosaxton.com.conf "$NGINX_SITE"
+      rm -f /etc/nginx/sites-enabled/bingohit.cl.conf "$NGINX_SITE"
       echo "La configuración de nginx no valida; se ha retirado el sitio nuevo sin tocar nada más." >&2
       exit 1
     fi
@@ -181,43 +207,46 @@ NGINX
     command -v certbot >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq certbot python3-certbot-nginx; }
     dpkg -s python3-certbot-nginx >/dev/null 2>&1 || apt-get install -y -qq python3-certbot-nginx
     # shellcheck disable=SC2046
-    certbot --nginx -d "$DOMAIN" -d paolosaxton.com --redirect $(certbot_args)
+    certbot --nginx -d "$DOMAIN" -d bingohit.cl --redirect $(certbot_args)
   fi
 }
 
 configure_apache() {
   log "Configurando el sitio en el Apache existente"
-  a2enmod -q proxy proxy_http headers rewrite >/dev/null
+  a2enmod -q proxy proxy_http proxy_wstunnel headers rewrite >/dev/null
   if [ ! -f "$APACHE_SITE" ]; then
     cat > "$APACHE_SITE" <<APACHE
-# Bingo musical (generado por deploy/setup-server.sh). La app corre en 127.0.0.1:$APP_PORT.
+# Bingo Hit (generado por deploy/setup-server.sh). El sistema corre en 127.0.0.1:$APP_PORT.
 <VirtualHost *:80>
     ServerName $DOMAIN
-    ServerAlias paolosaxton.com
+    ServerAlias bingohit.cl
 
-    RedirectMatch 301 ^/bingomusical$ /bingomusical/
+    RedirectMatch 301 ^$BASE_PATH$ $BASE_PATH/
     ProxyPreserveHost On
-    ProxyPass        /bingomusical/ http://127.0.0.1:$APP_PORT/
-    ProxyPassReverse /bingomusical/ http://127.0.0.1:$APP_PORT/
+    RewriteEngine On
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteRule ^$BASE_PATH/(.*) ws://127.0.0.1:$APP_PORT/\$1 [P,L]
+    ProxyPass        $BASE_PATH/ http://127.0.0.1:$APP_PORT/
+    ProxyPassReverse $BASE_PATH/ http://127.0.0.1:$APP_PORT/
 
-    # Raíz del dominio: de momento va al bingo. Sustituye esta línea por tu web.
-    RedirectMatch 302 ^/$ /bingomusical/
+    # Raíz del dominio: de momento va al sistema. Sustituye esta línea por tu web.
+    RedirectMatch 302 ^/$ $BASE_PATH/
 </VirtualHost>
 APACHE
-    a2ensite -q paolosaxton.com.conf >/dev/null
+    a2ensite -q bingohit.cl.conf >/dev/null
     if ! apachectl configtest; then
-      a2dissite -q paolosaxton.com.conf >/dev/null; rm -f "$APACHE_SITE"
+      a2dissite -q bingohit.cl.conf >/dev/null; rm -f "$APACHE_SITE"
       echo "La configuración de Apache no valida; se ha retirado el sitio nuevo sin tocar nada más." >&2
       exit 1
     fi
     systemctl reload apache2
   fi
-  if [ ! -f "/etc/apache2/sites-available/paolosaxton.com-le-ssl.conf" ]; then
+  if [ ! -f "/etc/apache2/sites-available/bingohit.cl-le-ssl.conf" ]; then
     log "Pidiendo el certificado HTTPS con certbot"
     command -v certbot >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq certbot python3-certbot-apache; }
     dpkg -s python3-certbot-apache >/dev/null 2>&1 || apt-get install -y -qq python3-certbot-apache
     # shellcheck disable=SC2046
-    certbot --apache -d "$DOMAIN" -d paolosaxton.com --redirect $(certbot_args)
+    certbot --apache -d "$DOMAIN" -d bingohit.cl --redirect $(certbot_args)
   fi
 }
 
@@ -226,15 +255,21 @@ case "$web_server" in
   apache) configure_apache ;;
   docker|other)
     printf '\n\033[1;33mAVISO:\033[0m los puertos 80/443 los ocupa un servidor que no sé configurar automáticamente:\n%s\n' "$listener"
-    echo "La app está en 127.0.0.1:$APP_PORT. Añade en ese servidor el sitio $DOMAIN con la ruta"
-    echo "/bingomusical/ -> http://127.0.0.1:$APP_PORT/ (ejemplo en deploy/nginx-site.example.conf)."
+    echo "El sistema está en 127.0.0.1:$APP_PORT. Añade en ese servidor el sitio $DOMAIN con la ruta"
+    echo "$BASE_PATH/ -> http://127.0.0.1:$APP_PORT/ con soporte de websocket (ejemplo en deploy/nginx-site.example.conf)."
     ;;
 esac
 
-log "Listo. La app estará en $APP_URL en cuanto el DNS y el certificado estén activos."
+log "Listo. El sistema estará en $APP_URL en cuanto el DNS y el certificado estén activos."
 echo "Registra $APP_URL como Redirect URI en https://developer.spotify.com/dashboard"
-if [ -n "$PROFILE" ]; then
-  echo "Logs: docker compose -f $APP_DIR/docker-compose.yml --profile $PROFILE logs -f"
+echo
+echo "Accesos (guárdalos; también están en $APP_DIR/.env):"
+echo "  Administrador general (#/admin):   $(env_value PLATFORM_ADMIN_TOKEN)"
+echo "  Animador Live / DJ (#/live, #/dj): $(env_value LIVE_HOST_TOKEN)"
+echo
+echo "Comprobación: curl -s ${APP_URL}health"
+if [ "$PROFILE" = "https" ]; then
+  echo "Logs: docker compose -f $APP_DIR/docker-compose.yml --profile https logs -f"
 else
-  echo "Logs: docker compose -f $APP_DIR/docker-compose.yml logs -f"
+  echo "Logs: docker compose -f $APP_DIR/docker-compose.yml --profile concert logs -f"
 fi

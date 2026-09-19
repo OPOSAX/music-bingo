@@ -103,6 +103,7 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
   startMode.value = previous?.startMode ?? 'random';
   const autoMark = h('select', { class: 'input' }, h('option', { value: 'played' }, 'Se marcan solas cuando suena la canción'), h('option', { value: 'revealed' }, 'Se marcan solas cuando revelas el título'), h('option', { value: 'off' }, 'No: cada jugador marca a mano'));
   autoMark.value = previous?.autoMark ?? 'played';
+  const lyrics = h('input', { type: 'checkbox', checked: previous?.lyrics !== false });
   const hint = h('p', { class: 'muted small' });
 
   const updateHint = () => {
@@ -123,7 +124,7 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
       'section',
       { class: 'panel' },
       h('h2', null, '2. Opciones'),
-      h('div', { class: 'fields' }, field('Tamaño de la tarjeta', gridSelect), h('label', { class: 'field field-check' }, freeCenter, h('span', null, 'Casilla central libre')), field('Número de tarjetas', cardCount), field('Segundos por canción', snippet), field('Por dónde empieza el fragmento', startMode), field('Tarjetas escaneadas (móvil)', autoMark)),
+      h('div', { class: 'fields' }, field('Tamaño de la tarjeta', gridSelect), h('label', { class: 'field field-check' }, freeCenter, h('span', null, 'Casilla central libre')), field('Número de tarjetas', cardCount), field('Segundos por canción', snippet), field('Por dónde empieza el fragmento', startMode), field('Tarjetas escaneadas (móvil)', autoMark), h('label', { class: 'field field-check' }, lyrics, h('span', null, 'Mostrar la letra (karaoke)'))),
       hint,
     ),
   );
@@ -154,6 +155,7 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
         snippetSeconds: Number(snippet.value),
         startMode: startMode.value as StartMode,
         autoMark: autoMark.value as AutoMark,
+        lyrics: lyrics.checked,
       };
       const errors = validateConfig(config, tracks.length);
       if (errors.length) {

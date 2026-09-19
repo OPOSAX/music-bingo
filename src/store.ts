@@ -23,6 +23,8 @@ export interface GameState {
   /** Mensaje del anfitrión visible en las tarjetas sincronizadas. */
   message?: string;
   messageAt?: number;
+  /** Último fragmento reproducido: instante de inicio, posición en la canción y duración (ms). */
+  lastPlay?: { at: number; pos: number; len: number };
 }
 
 const GAME_KEY = 'musicbingo:game';

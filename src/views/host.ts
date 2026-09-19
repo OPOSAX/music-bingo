@@ -10,6 +10,7 @@ import type { GameState } from '../store.js';
 import { calledSet, cardName, cardTitle, currentTrackIndex, gameCards, loadGame, saveGame, setCardName } from '../store.js';
 import { renderCardGrid } from './card-grid.js';
 import { buildSyncState, newTopic, publishState, relayBase, type AutoMark } from '../sync.js';
+import { createLyricsPanel, lyricsToggle } from './lyrics-panel.js';
 
 let snippetPlayer: SnippetPlayer | null = null;
 let browserPlayer: Spotify.Player | null = null;
@@ -111,8 +112,12 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   const replayBtn = button('Repetir fragmento', () => void replay(), 'btn');
   const revealBtn = button('Revelar título', () => reveal(), 'btn');
   const stopBtn = button('■ Parar', () => void stop(), 'btn');
-  const gamePanel = h('section', { class: 'panel game-panel' }, h('div', { class: 'row space' }, h('h2', null, 'Canción'), counter), nowPlaying, progress, h('div', { class: 'actions' }, nextBtn, replayBtn, revealBtn, stopBtn));
+  const lyricsPanel = createLyricsPanel();
+  const lyricsBtn = lyricsToggle(lyricsPanel);
+  const gamePanel = h('section', { class: 'panel game-panel' }, h('div', { class: 'row space' }, h('h2', null, 'Canción'), counter), nowPlaying, progress, h('div', { class: 'actions' }, nextBtn, replayBtn, revealBtn, stopBtn, lyricsBtn), lyricsPanel.el);
   root.appendChild(gamePanel);
+  lyricsPanel.el.hidden = game.config.lyrics === false;
+  lyricsBtn.hidden = game.config.lyrics === false;
 
   /* ---- Clasificación ---- */
   const winners = h('div', { class: 'winners' });
@@ -157,6 +162,13 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   });
   const autoMarkSelect = h('select', { class: 'input' }, h('option', { value: 'played' }, 'Al sonar la canción'), h('option', { value: 'revealed' }, 'Al revelar el título'), h('option', { value: 'off' }, 'Nunca (marcan a mano)'));
   autoMarkSelect.value = game.config.autoMark ?? 'played';
+  const lyricsCheck = h('input', { type: 'checkbox', checked: game.config.lyrics !== false });
+  lyricsCheck.addEventListener('change', () => {
+    game.config.lyrics = lyricsCheck.checked;
+    lyricsPanel.el.hidden = !lyricsCheck.checked;
+    lyricsBtn.hidden = !lyricsCheck.checked;
+    persist();
+  });
   autoMarkSelect.addEventListener('change', () => {
     game.config.autoMark = autoMarkSelect.value as AutoMark;
     persist();
@@ -167,7 +179,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       { class: 'panel' },
       h('h2', null, 'Tarjetas escaneadas'),
       h('p', { class: 'muted small' }, 'Las tarjetas abiertas desde el QR reciben en directo lo que va sonando y se marcan solas. Las tarjetas repartidas antes de crear esta partida no se sincronizan.'),
-      h('div', { class: 'fields' }, h('label', { class: 'field' }, h('span', null, 'Marcado automático'), autoMarkSelect)),
+      h('div', { class: 'fields' }, h('label', { class: 'field' }, h('span', null, 'Marcado automático'), autoMarkSelect), h('label', { class: 'field field-check' }, lyricsCheck, h('span', null, 'Letra de la canción (karaoke) en las tarjetas'))),
       messageForm,
       h('p', null, h('strong', null, 'Estado: '), syncStatus),
       h('p', { class: 'muted small' }, `Canal: ${relayBase()}`),
@@ -213,9 +225,11 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     counter.textContent = `${game.position} / ${game.order.length}`;
     if (idx === null) {
       nowPlaying.appendChild(h('p', { class: 'muted' }, 'Pulsa "Empezar" cuando todos tengan su tarjeta.'));
+      lyricsPanel.show(null, null);
       return;
     }
     const track = game.tracks[idx] as Track;
+    if (game.config.lyrics !== false) lyricsPanel.show({ id: track.id, name: track.name, artists: track.artists, album: track.album, durationMs: track.durationMs }, game.lastPlay ?? null);
     if (game.revealed) {
       nowPlaying.appendChild(h('div', { class: 'track-big' }, track.image ? h('img', { src: track.image, alt: '' }) : null, h('div', null, h('div', { class: 'track-title' }, track.name), h('div', { class: 'track-artist' }, track.artists))));
     } else {
@@ -319,6 +333,10 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     playing = true;
     refreshControls();
     try {
+      game.lastPlay = { at: Date.now(), pos: start, len: game.config.snippetSeconds * 1000 };
+      saveGame(game);
+      lyricsPanel.setClock(game.lastPlay);
+      publish();
       await snippetPlayer.play(track, start, game.config.snippetSeconds, {
         onTick: (elapsed, total) => {
           progressBar.style.width = `${(elapsed / total) * 100}%`;

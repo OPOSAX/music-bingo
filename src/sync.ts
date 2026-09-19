@@ -23,6 +23,10 @@ export interface SyncState {
   log?: [number, string, string][];
   /** Mensaje del anfitrión a los jugadores. */
   msg?: { text: string; t: number } | null;
+  /** Canción en curso, solo si el anfitrión activa las letras (para buscarla en LRCLIB). */
+  cur?: { id: string; name: string; artists: string; album: string; durationMs: number } | null;
+  /** Reloj del último fragmento reproducido, para sincronizar la letra. */
+  play?: { at: number; pos: number; len: number } | null;
   autoMark: AutoMark;
   /** Momento de publicación (ms). */
   t: number;
@@ -69,6 +73,8 @@ export function buildSyncState(game: GameState): SyncState {
     now: game.revealed && last ? { name: last.name, artists: last.artists } : null,
     log,
     msg: game.message ? { text: game.message, t: game.messageAt ?? 0 } : null,
+    cur: game.config.lyrics !== false && last ? { id: last.id, name: last.name, artists: last.artists, album: last.album, durationMs: last.durationMs } : null,
+    play: game.config.lyrics !== false && game.lastPlay ? game.lastPlay : null,
     autoMark: game.config.autoMark ?? 'played',
     t: Date.now(),
   };
@@ -86,6 +92,8 @@ export function parseSyncState(text: string): SyncState | null {
       now: data.now ?? null,
       log: Array.isArray(data.log) ? data.log.filter((e): e is [number, string, string] => Array.isArray(e) && e.length === 3) : [],
       msg: data.msg && typeof data.msg.text === 'string' ? { text: data.msg.text, t: Number(data.msg.t) || 0 } : null,
+      cur: data.cur && typeof data.cur.id === 'string' && typeof data.cur.name === 'string' ? { id: data.cur.id, name: data.cur.name, artists: String(data.cur.artists ?? ''), album: String(data.cur.album ?? ''), durationMs: Number(data.cur.durationMs) || 0 } : null,
+      play: data.play && typeof data.play.at === 'number' ? { at: data.play.at, pos: Number(data.play.pos) || 0, len: Number(data.play.len) || 0 } : null,
       autoMark: data.autoMark === 'revealed' || data.autoMark === 'off' ? data.autoMark : 'played',
       t: typeof data.t === 'number' ? data.t : 0,
     };

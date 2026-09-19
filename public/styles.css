@@ -268,3 +268,13 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
 .feed-list { list-style: none; padding: 0; margin: 0; max-height: 240px; overflow: auto; background: var(--panel); border-radius: var(--radius); }
 .feed-list li { padding: 8px 12px; border-bottom: 1px solid #2a2a2a; font-size: 0.95rem; }
 .feed-n { display: inline-block; width: 32px; color: var(--muted); }
+
+/* Letra (karaoke) */
+.lyrics { margin: 12px 0 0; }
+.lyrics h3 { margin: 0; }
+.lyrics-body { max-height: 260px; overflow: auto; background: var(--panel-2); border-radius: var(--radius); padding: 12px 14px; scroll-behavior: smooth; }
+.lyrics.compact .lyrics-body { max-height: 200px; }
+.lyric-line { margin: 0; padding: 4px 0; font-size: 1.05rem; line-height: 1.4; color: var(--muted); transition: color 0.2s, transform 0.2s; }
+.lyric-line.past { color: #7a7a7a; }
+.lyric-line.current { color: var(--text); font-weight: 700; font-size: 1.15rem; transform: translateX(4px); }
+.lyrics-body:has(.lyric-line.current) .lyric-line:not(.current):not(.past) { color: var(--muted); }

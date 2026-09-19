@@ -7,7 +7,7 @@ import type { GameState } from '../src/store.js';
 const state: SyncState = { v: 1, seed: 'ABC123', called: [5, 9, 2], revealed: false, now: null, autoMark: 'played', t: 1000 };
 
 test('parseSyncState acepta estados válidos y rechaza el resto', () => {
-  assert.deepEqual(parseSyncState(JSON.stringify(state)), { ...state, log: [], msg: null });
+  assert.deepEqual(parseSyncState(JSON.stringify(state)), { ...state, log: [], msg: null, cur: null, play: null });
   assert.equal(parseSyncState('no es json'), null);
   assert.equal(parseSyncState(JSON.stringify({ v: 2 })), null);
   assert.equal(parseSyncState(JSON.stringify({ v: 1, seed: 'X', called: 'nope' })), null);
@@ -50,4 +50,7 @@ test('buildSyncState incluye el historial revelado y el mensaje', () => {
   const round = parseSyncState(JSON.stringify(state));
   assert.deepEqual(round?.log, state.log);
   assert.deepEqual(round?.msg, state.msg);
+  assert.deepEqual(round?.cur, { id: 't19', name: 'Tema 19', artists: 'Grupo 19', album: '', durationMs: 1000 }, 'canción en curso para la letra');
+  game.config.lyrics = false;
+  assert.equal(buildSyncState(game).cur, null, 'sin letras no se envía la canción en curso');
 });

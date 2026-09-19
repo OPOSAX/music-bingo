@@ -96,6 +96,8 @@ export function snippetStart(track: Track, mode: StartMode, snippetSeconds: numb
 export interface SnippetEvents {
   onTick(elapsedMs: number, totalMs: number): void;
   onEnd(): void;
+  /** Si es true, al acabar el fragmento la canción sigue sonando (no se pausa). */
+  keepPlaying?: boolean;
 }
 
 /** Reproduce fragmentos de canciones en un dispositivo concreto y los detiene a tiempo. */
@@ -127,7 +129,7 @@ export class SnippetPlayer {
     }, 100);
     this.timer = window.setTimeout(() => {
       this.cancelTimers();
-      api.pause(this.deviceId).catch(() => undefined);
+      if (!events.keepPlaying) api.pause(this.deviceId).catch(() => undefined);
       events.onTick(totalMs, totalMs);
       events.onEnd();
     }, totalMs);

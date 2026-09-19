@@ -29,6 +29,8 @@ export interface GameConfig {
   autoMark?: 'played' | 'revealed' | 'off';
   /** Mostrar la letra de la canción en curso en las tarjetas (karaoke). */
   lyrics?: boolean;
+  /** No pausar al acabar el fragmento: la canción sigue hasta la siguiente (evita que iOS suspenda Spotify). */
+  continuous?: boolean;
 }
 
 /** Celda de una tarjeta: índice dentro del pool de canciones o null si es libre. */

@@ -9,6 +9,7 @@ import * as api from '../spotify-api.js';
 import type { GameState } from '../store.js';
 import { calledSet, cardName, cardTitle, currentTrackIndex, gameCards, loadGame, saveGame, setCardName } from '../store.js';
 import { renderCardGrid } from './card-grid.js';
+import { buildSyncState, newTopic, publishState, relayBase, type AutoMark } from '../sync.js';
 
 let snippetPlayer: SnippetPlayer | null = null;
 let browserPlayer: Spotify.Player | null = null;
@@ -139,6 +140,43 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     ),
   );
 
+  /* ---- Sincronización con las tarjetas ---- */
+  if (!game.syncTopic) {
+    game.syncTopic = newTopic(game.config.seed); // partidas creadas antes de existir la sincronización
+    saveGame(game);
+  }
+  const syncStatus = h('span', { class: 'muted small' }, 'Sin publicar todavía.');
+  const autoMarkSelect = h('select', { class: 'input' }, h('option', { value: 'played' }, 'Al sonar la canción'), h('option', { value: 'revealed' }, 'Al revelar el título'), h('option', { value: 'off' }, 'Nunca (marcan a mano)'));
+  autoMarkSelect.value = game.config.autoMark ?? 'played';
+  autoMarkSelect.addEventListener('change', () => {
+    game.config.autoMark = autoMarkSelect.value as AutoMark;
+    persist();
+  });
+  root.appendChild(
+    h(
+      'section',
+      { class: 'panel' },
+      h('h2', null, 'Tarjetas escaneadas'),
+      h('p', { class: 'muted small' }, 'Las tarjetas abiertas desde el QR reciben en directo lo que va sonando y se marcan solas. Las tarjetas repartidas antes de crear esta partida no se sincronizan.'),
+      h('div', { class: 'fields' }, h('label', { class: 'field' }, h('span', null, 'Marcado automático'), autoMarkSelect)),
+      h('p', null, h('strong', null, 'Estado: '), syncStatus),
+      h('p', { class: 'muted small' }, `Canal: ${relayBase()}`),
+    ),
+  );
+
+  let publishTimer: number | null = null;
+  function publish(): void {
+    if (publishTimer !== null) window.clearTimeout(publishTimer);
+    publishTimer = window.setTimeout(() => {
+      publishTimer = null;
+      const state = buildSyncState(game);
+      void publishState(game.syncTopic as string, state).then((ok) => {
+        syncStatus.textContent = ok ? `Publicado: ${state.called.length} canciones cantadas · ${new Date(state.t).toLocaleTimeString()}` : 'No se pudo publicar (sin conexión con el canal). Las tarjetas no se actualizarán hasta que vuelva.';
+        syncStatus.className = ok ? 'ok small' : 'alert-error small';
+      });
+    }, 300);
+  }
+
   /* ---- Historial ---- */
   const history = h('ol', { class: 'history' });
   root.appendChild(h('section', { class: 'panel' }, h('h2', null, 'Canciones cantadas'), history));
@@ -260,6 +298,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     renderHistory();
     renderWinners();
     refreshControls();
+    publish();
   }
 
   async function playCurrent(): Promise<void> {

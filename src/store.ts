@@ -2,6 +2,7 @@
 
 import type { Card, GameConfig, Track } from './bingo.js';
 import { generateCards, playOrder } from './bingo.js';
+import { newTopic } from './sync.js';
 
 export interface GameState {
   version: 1;
@@ -17,6 +18,8 @@ export interface GameState {
   revealed: boolean;
   /** Nombre del jugador de cada tarjeta (clave: índice de tarjeta). */
   names?: Record<string, string>;
+  /** Canal de sincronización con las tarjetas de los jugadores. */
+  syncTopic?: string;
 }
 
 const GAME_KEY = 'musicbingo:game';
@@ -62,6 +65,7 @@ export function createGame(config: GameConfig, playlistName: string, tracks: Tra
     order: playOrder(config, tracks.length),
     position: 0,
     revealed: false,
+    syncTopic: newTopic(config.seed),
   };
 }
 

@@ -25,6 +25,8 @@ export interface GameConfig {
   /** Duración del fragmento que se reproduce en cada turno. */
   snippetSeconds: number;
   startMode: StartMode;
+  /** Marcado automático de las tarjetas escaneadas: al sonar, al revelar el título, o nunca. */
+  autoMark?: 'played' | 'revealed' | 'off';
 }
 
 /** Celda de una tarjeta: índice dentro del pool de canciones o null si es libre. */

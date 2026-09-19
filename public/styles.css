@@ -259,3 +259,7 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
   .lb-row { grid-template-columns: 24px minmax(70px, 1fr) minmax(60px, 1.4fr) 48px; }
   .lb-status { grid-column: 2 / -1; }
 }
+
+/* Tarjeta en directo */
+.live { text-align: center; margin: 0 0 8px; }
+.live-now { background: var(--panel); border-radius: var(--radius); padding: 10px 12px; margin: 0; font-weight: 600; }

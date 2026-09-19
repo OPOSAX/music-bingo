@@ -25,6 +25,10 @@ dependencias en tiempo de ejecución**. Solo hace falta un servidor de archivos 
   enlace se puede copiar o compartir con la hoja nativa del móvil.
 - **Vista de jugador**: toca para marcar, detección automática de línea y bingo, marcas
   guardadas en el dispositivo.
+- **Tarjetas sincronizadas**: las tarjetas abiertas desde el QR reciben en directo lo que va
+  sonando y se marcan solas (al sonar, al revelar el título, o nunca, a elección del anfitrión).
+  Se usa un canal de mensajes [ntfy](https://ntfy.sh) con un identificador secreto por partida;
+  no hace falta servidor propio, y se puede apuntar a un servidor ntfy propio.
 - **Pantalla del anfitrión**: canción oculta hasta que la reveles, historial, contador,
   tarjetas con línea/bingo en tiempo real, deshacer y reanudar la partida tras recargar.
 - Interfaz en español, diseño responsive y hoja de estilos de impresión.
@@ -203,7 +207,7 @@ deploy/           setup-server.sh: instalación/actualización en el servidor
 - Spotify exige Premium para el Web Playback SDK y para controlar la reproducción por API.
 - Las listas editoriales de Spotify (las que crea el propio Spotify) no están disponibles
   para apps en modo desarrollo; usa listas propias o de otros usuarios.
-- Los enlaces de tarjeta contienen las canciones, no se sincronizan con el anfitrión:
-  la comprobación oficial siempre la hace el anfitrión con el número de tarjeta.
+- La sincronización en directo pasa por ntfy.sh (servidor público gratuito con límites de
+  mensajes por día); la comprobación oficial siempre la hace el anfitrión con el número de tarjeta.
 - El QR contiene la tarjeta completa, así que con tarjetas 5×5 y títulos largos puede ser
   denso; muéstralo grande en pantalla (la vista de reparto ya lo hace) o imprímelo a 3 cm o más.

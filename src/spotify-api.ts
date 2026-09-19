@@ -258,6 +258,16 @@ export function play(deviceId: string, uri: string, positionMs: number): Promise
   });
 }
 
+/** Modo de repetición del dispositivo: 'track' mantiene la canción en bucle (evita que Spotify se pare al acabar). */
+export async function setRepeat(deviceId: string, state: 'track' | 'off'): Promise<void> {
+  try {
+    await request<void>(`/me/player/repeat?state=${state}&device_id=${encodeURIComponent(deviceId)}`, { method: 'PUT' });
+  } catch (err) {
+    if (err instanceof SpotifyApiError && (err.status === 403 || err.status === 404)) return;
+    throw err;
+  }
+}
+
 export async function pause(deviceId: string): Promise<void> {
   try {
     await request<void>(`/me/player/pause?device_id=${encodeURIComponent(deviceId)}`, { method: 'PUT' });

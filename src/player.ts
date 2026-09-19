@@ -121,6 +121,8 @@ export class SnippetPlayer {
       await api.play(this.deviceId, track.uri, positionMs);
     }
     if (gen !== this.generation) return;
+    // En modo continuo la canción queda en bucle: así Spotify nunca se detiene y el móvil no lo suspende.
+    void api.setRepeat(this.deviceId, events.keepPlaying ? 'track' : 'off').catch(() => undefined);
     const totalMs = seconds * 1000;
     const startedAt = performance.now();
     events.onTick(0, totalMs);
@@ -139,6 +141,7 @@ export class SnippetPlayer {
     this.generation++;
     this.cancelTimers();
     await api.pause(this.deviceId).catch(() => undefined);
+    void api.setRepeat(this.deviceId, 'off').catch(() => undefined);
   }
 
   private cancelTimers(): void {

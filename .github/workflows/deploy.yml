@@ -43,6 +43,10 @@ jobs:
           elif [ -z "$PASSWORD" ] && [ -z "$SSH_KEY" ]; then
             echo "Falta DEPLOY_PASSWORD o DEPLOY_SSH_KEY: no se despliega."
             echo "enabled=false" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "push" ] && [ -z "$SSH_KEY" ]; then
+            # El despliegue automático solo se intenta con clave SSH; con contraseña, lánzalo a mano.
+            echo "Sin DEPLOY_SSH_KEY el despliegue automático se omite (usa 'Run workflow' para probar con contraseña)."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi

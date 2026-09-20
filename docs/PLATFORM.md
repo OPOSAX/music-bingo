@@ -83,7 +83,12 @@ Completo: `docker compose --profile concert up -d --build` con `PLATFORM_ADMIN_T
 
 **ADMIN + HOST**: portada → **Iniciar** (`#/login`) → usuario `admin` + contraseña → Animadores → crear (nombre, usuario y
 contraseña) → marcar permisos (p. ej. "Tarjetas pagadas") → Guardar. El animador pulsa **Iniciar** con su usuario y contraseña
-y entra en su panel (`#/events`): partida Spotify, eventos, 🎥 Transmitir (Bingo Hit Live) y 🎤 Karaoke (panel DJ) con la misma sesión.
+y entra en su panel (`#/events`): partida Spotify, eventos y, por evento publicado, 🎥 Transmitir (Bingo Hit Live) y
+🎤 Karaoke (DJ) en la sala del evento, con la misma sesión.
+
+**Participante (un solo QR)**: el QR de acceso abre la tarjeta; debajo del vídeo del animador aparece **🎤 Quiero cantar**
+(misma sala `bingo-<evento>`). El anfitrión ve "Quieren cantar" en `#/host` y `#/live` y da paso desde el panel del DJ.
+Cuando la app la sirve el servidor Bingo Hit y hay sesión de animador, la partida usa ese servidor Live sin configurarlo.
 
 **LOCAL + FREE**: animador → Nuevo evento → Presencial + Gratis → (opcional) usar la partida de Spotify actual → Crear → Publicar.
 En `#/host` (partida Spotify) el panel "Bingo Hit Live" permite vincular la partida al evento; los jugadores del recinto

@@ -10,8 +10,14 @@ import type { GameState } from '../store.js';
 import { calledSet, cardName, cardTitle, currentTrackIndex, gameCards, loadGame, saveGame, setCardName } from '../store.js';
 import { renderCardGrid } from './card-grid.js';
 import { buildSyncState, newTopic, poolChunks, publishMessage, publishState, relayBase, subscribeTopic, type AutoMark, type Subscription } from '../sync.js';
-import { loadToken } from '../concert/store.js';
+import { loadToken, saveToken } from '../concert/store.js';
+import type { ConcertEndpoint } from '../concert/session.js';
+import { djPanelUrl } from '../concert/views/karaoke-host-panel.js';
 import { liveLinkOf, renderLiveHostPanel } from '../live/views/host-panel.js';
+import { liveRoomId } from '../live/protocol.js';
+import { detectLiveServer } from '../concert/session.js';
+import { renderKaraokeHostPanel } from '../concert/views/karaoke-host-panel.js';
+import { tokens } from '../platform/api.js';
 import { LIVE_EVENTS, type BingoClaimed, type GameConfigMessage } from '../live/protocol.js';
 import { liveSession, releaseLiveSessions } from '../live/session.js';
 import { createLyricsPanel, lyricsToggle } from './lyrics-panel.js';
@@ -36,13 +42,24 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   }
   const game: GameState = loaded;
   const cards = gameCards(game);
+  // Servida por el servidor Bingo Hit y con sesión de animador: la partida usa el servidor Live sin configurar nada.
+  if (!game.liveServer && !autoLiveTried.has(game.config.seed)) {
+    autoLiveTried.add(game.config.seed);
+    const detected = await detectLiveServer();
+    const token = loadToken() || tokens.host();
+    if (detected && token) {
+      game.liveServer = detected;
+      saveToken(token);
+      saveGame(game);
+    }
+  }
 
   root.appendChild(
     h(
       'header',
       { class: 'page-header' },
       h('div', null, h('h1', null, `Partida ${game.config.seed}`), h('p', { class: 'muted' }, `${game.playlistName} · ${game.tracks.length} canciones · ${cards.length} tarjetas · ${game.config.gridSize}×${game.config.gridSize}`)),
-      h('div', { class: 'actions' }, button('📱 Repartir con QR', () => navigate('/deal'), 'btn'), button('Tarjetas', () => navigate('/cards'), 'btn'), button('Inicio', () => navigate('/'), 'btn btn-link')),
+      h('div', { class: 'actions' }, button('📱 QR de acceso', () => navigate('/deal'), 'btn btn-primary'), game.liveServer ? button('🎥 Transmitir', () => navigate(`/live?event=${encodeURIComponent(game.eventId ?? game.config.seed)}`), 'btn') : null, game.liveServer ? button('🎤 Panel del DJ', () => navigate(djPanelUrl(karaokeEndpoint(game))), 'btn') : null, button('Tarjetas', () => navigate('/cards'), 'btn'), button('Mis eventos', () => navigate('/events'), 'btn btn-link')),
     ),
   );
 
@@ -348,6 +365,10 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     }, 300);
   }
 
+  /* ---- Karaoke: quién quiere cantar (misma sala que la partida) ---- */
+  if (game.liveServer) root.appendChild(renderKaraokeHostPanel(karaokeEndpoint(game)));
+  else root.appendChild(h('section', { class: 'panel' }, h('h2', null, '🎤 Quieren cantar'), h('p', { class: 'muted small' }, 'Activa Bingo Hit Live (más abajo) para que los jugadores puedan apuntarse a cantar desde su tarjeta y verlos aquí.')));
+
   /* ---- Bingo Hit Live ---- */
   const bingoClaims = h('ul', { class: 'feed-list bingo-claims' });
   bingoClaims.hidden = true;
@@ -601,4 +622,14 @@ export async function renderHost(root: HTMLElement): Promise<void> {
 /** Cierra el reproductor del navegador al salir de la pantalla. */
 export function releasePlayer(): void {
   void snippetPlayer?.stop();
+}
+
+const autoLiveTried = new Set<string>();
+
+/** Sala de karaoke de la partida: la misma que usa Bingo Hit Live (`bingo-<evento>`). */
+function karaokeEndpoint(game: GameState): ConcertEndpoint {
+  const endpoint: ConcertEndpoint = { btalkUrl: game.liveServer ?? '', roomId: liveRoomId(game.eventId ?? game.config.seed) };
+  const token = loadToken() || tokens.host();
+  if (token) endpoint.token = token;
+  return endpoint;
 }

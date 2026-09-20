@@ -30,7 +30,7 @@ export async function renderHostEvents(root: HTMLElement, params: URLSearchParam
   }
   const list = h('section', { class: 'panel' }, h('h2', null, 'Eventos'));
   const wizardHost = h('div');
-  root.appendChild(h('section', { class: 'panel' }, h('p', null, `Hola, ${me.name}. `, h('span', { class: 'small muted' }, permissionsSummary(me.permissions))), h('div', { class: 'actions' }, button('➕ Nuevo evento', () => { clear(wizardHost); wizardHost.appendChild(renderWizard(me, null, refresh)); wizardHost.scrollIntoView({ behavior: 'smooth' }); }, 'btn btn-primary'), button('🎤 Karaoke (panel DJ)', () => navigate(`/dj?l=${encodeURIComponent(server)}&token=${encodeURIComponent(tokens.host())}`), 'btn'))));
+  root.appendChild(h('section', { class: 'panel' }, h('p', null, `Hola, ${me.name}. `, h('span', { class: 'small muted' }, permissionsSummary(me.permissions))), h('div', { class: 'actions' }, button('➕ Nuevo evento', () => { clear(wizardHost); wizardHost.appendChild(renderWizard(me, null, refresh)); wizardHost.scrollIntoView({ behavior: 'smooth' }); }, 'btn btn-primary'))));
   await renderSpotifyPanel(root);
   root.appendChild(wizardHost);
   root.appendChild(list);
@@ -65,6 +65,7 @@ function renderEventCard(e: HostEvent, me: Awaited<ReturnType<typeof hostApi.me>
   if (e.status === 'LIVE') actions.appendChild(act('■ Terminar', () => hostApi.finish(e.id), 'btn btn-sm btn-danger'));
   if (['DRAFT', 'PUBLISHED', 'LIVE'].includes(e.status)) actions.appendChild(button('Editar', () => { clear(wizardHost); wizardHost.appendChild(renderWizard(me, e, refresh)); wizardHost.scrollIntoView({ behavior: 'smooth' }); }, 'btn btn-sm'));
   if (e.eventMode !== 'LOCAL' && ['PUBLISHED', 'LIVE'].includes(e.status)) actions.appendChild(button('🎥 Transmitir', () => navigate(`/live?event=${encodeURIComponent(e.id)}&l=${encodeURIComponent(currentServer())}&token=${encodeURIComponent(tokens.host())}`), 'btn btn-sm'));
+  if (['PUBLISHED', 'LIVE'].includes(e.status)) actions.appendChild(button('🎤 Karaoke (DJ)', () => navigate(`/dj?btalk=${encodeURIComponent(currentServer())}&room=${encodeURIComponent(e.liveRoomId ?? `bingo-${e.id}`)}&token=${encodeURIComponent(tokens.host())}`), 'btn btn-sm'));
   actions.appendChild(button('🎵 Conducir bingo', () => navigate(`/host?event=${encodeURIComponent(e.id)}`), 'btn btn-sm'));
   const card = h(
     'div',

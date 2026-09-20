@@ -27,7 +27,7 @@ export async function renderPlayerEntry(root: HTMLElement): Promise<void> {
   root.appendChild(h('section', { class: 'page-header' }, h('h1', null, '📱 Jugar'), h('div', { class: 'actions' }, button('Inicio', () => navigate('/'), 'btn btn-link'))));
   root.appendChild(renderPlayerAccess());
   root.appendChild(
-    h('section', { class: 'panel' }, h('h2', null, '🎤 Karaoke'), h('p', { class: 'muted' }, 'Si el DJ del evento abrió el karaoke, apúntate para cantar desde tu móvil.'), h('div', { class: 'actions' }, button('Quiero cantar', () => navigate('/sing'), 'btn btn-primary'))),
+    h('section', { class: 'panel' }, h('h2', null, '🎤 Karaoke'), h('p', { class: 'muted' }, 'Cuando abras tu tarjeta encontrarás el botón "Quiero cantar": entras en la lista del animador y él te da paso al micrófono desde tu propio móvil.')),
   );
 }
 

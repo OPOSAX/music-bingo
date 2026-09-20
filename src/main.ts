@@ -12,6 +12,7 @@ import { releasePlayer, renderHost } from './views/host.js';
 import { renderSetup } from './views/setup.js';
 import { releaseDj, renderDj } from './concert/views/dj.js';
 import { releaseSing, renderSing } from './concert/views/sing.js';
+import { releaseKaraokeWatch } from './concert/views/karaoke-host-panel.js';
 import { releaseLiveHost, renderLiveHost } from './live/views/live-host.js';
 import { renderPlay } from './live/views/play.js';
 import { renderEvent } from './platform/views/event.js';
@@ -26,7 +27,8 @@ async function render(route: Route): Promise<void> {
   if (route.path !== '/host') releasePlayer();
   if (route.path !== '/card' && route.path !== '/join') releaseCardSync();
   if (route.path !== '/dj') await releaseDj();
-  if (route.path !== '/sing') await releaseSing();
+  if (!['/sing', '/card', '/join', '/play'].includes(route.path)) await releaseSing();
+  if (route.path !== '/host' && route.path !== '/live') releaseKaraokeWatch();
   if (route.path !== '/live') await releaseLiveHost();
   try {
     switch (route.path) {

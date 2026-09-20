@@ -10,9 +10,7 @@ let showClientIdForm = false;
 
 export async function renderHome(root: HTMLElement): Promise<void> {
   clear(root);
-  root.appendChild(
-    h('section', { class: 'hero' }, h('h1', null, '🎵 Bingo musical'), h('p', { class: 'lead' }, 'Tu lista de Spotify, tus tarjetas, tu fiesta.')),
-  );
+  root.appendChild(renderLanding());
   const version = h('p', { class: 'muted small center version' });
   root.appendChild(version);
   void fetch('version.txt', { cache: 'no-store' })
@@ -133,16 +131,63 @@ function renderClientIdForm(): HTMLElement {
   return form;
 }
 
-function renderConcertAccess(): HTMLElement {
+/** Portada de marca: qué es Bingo Hit, para quién y cómo se juega. */
+function renderLanding(): HTMLElement {
+  const feature = (icon: string, title: string) => h('div', { class: 'bh-feature' }, h('span', { class: 'bh-feature-icon' }, icon), h('span', null, title));
   return h(
     'section',
-    { class: 'panel concert-access' },
-    h('h2', null, '🎟 Eventos Bingo Hit'),
-    h('p', { class: 'muted' }, 'Animadores: crea y configura tus eventos (presencial, online o híbrido; tarjetas gratis o pagadas). Administrador: pagos, permisos y métricas.'),
-    h('div', { class: 'actions' }, button('Mis eventos (animador)', () => navigate('/events'), 'btn'), button('Administración', () => navigate('/admin'), 'btn btn-link')),
-    h('h2', null, '🎤 Karaoke'),
-    h('p', { class: 'muted' }, 'El público canta desde su móvil y el DJ decide quién suena por los altavoces.'),
-    h('div', { class: 'actions' }, button('Panel del DJ', () => navigate('/dj'), 'btn'), button('Quiero cantar', () => navigate('/sing'), 'btn btn-primary')),
+    { class: 'bh-hero' },
+    h('div', { class: 'bh-hero-bg' }),
+    h(
+      'div',
+      { class: 'bh-hero-body' },
+      h('p', { class: 'bh-kicker' }, 'Buena música · Mejores momentos'),
+      h('h1', { class: 'bh-title' }, h('span', null, 'BINGO '), h('span', { class: 'bh-gold' }, 'HIT')),
+      h('p', { class: 'bh-sub' }, 'Music Bingo & Karaoke'),
+      h('p', { class: 'bh-tagline' }, 'La música se transforma en juego'),
+      h(
+        'p',
+        { class: 'bh-desc' },
+        h('strong', null, 'Bingo HIT'),
+        ' es una experiencia de entretenimiento musical interactivo que combina ',
+        h('strong', null, 'bingo musical'),
+        ', ',
+        h('strong', null, 'karaoke'),
+        ' y ',
+        h('strong', null, 'participación en vivo'),
+        ' desde el celular. Ideal para bares, pubs, restaurantes, hoteles, eventos y activaciones de marca.',
+      ),
+      h('div', { class: 'bh-features' }, feature('📱', 'Participación desde el celular'), feature('🎵', 'Bingo musical en vivo'), feature('🎤', 'Modo karaoke integrado'), feature('🏆', 'Premios, rondas y desafíos')),
+      h(
+        'div',
+        { class: 'bh-actions' },
+        button('🎤 Soy animador', () => navigate('/events'), 'btn btn-gold'),
+        button('📱 Quiero jugar', () => document.getElementById('jugador')?.scrollIntoView({ behavior: 'smooth' }), 'btn btn-outline-gold'),
+      ),
+      h('p', { class: 'bh-claim' }, 'Escucha. Juega. Canta. Gana.'),
+      h('p', { class: 'bh-claim-sub' }, 'Más que música, es conexión'),
+    ),
+  );
+}
+
+function renderConcertAccess(): HTMLElement {
+  return h(
+    'div',
+    null,
+    h(
+      'section',
+      { class: 'panel' },
+      h('h2', null, '🎟 Eventos'),
+      h('p', { class: 'muted' }, 'Animadores: crea y configura tus eventos (presencial, online o híbrido; tarjetas gratis o pagadas). Administrador: pagos, permisos y métricas.'),
+      h('div', { class: 'actions' }, button('Mis eventos (animador)', () => navigate('/events'), 'btn'), button('Administración', () => navigate('/admin'), 'btn btn-link')),
+    ),
+    h(
+      'section',
+      { class: 'panel concert-access' },
+      h('h2', null, '🎤 Karaoke'),
+      h('p', { class: 'muted' }, 'El público canta desde su móvil y el DJ decide quién suena por los altavoces.'),
+      h('div', { class: 'actions' }, button('Panel del DJ', () => navigate('/dj'), 'btn'), button('Quiero cantar', () => navigate('/sing'), 'btn btn-primary')),
+    ),
   );
 }
 
@@ -150,7 +195,7 @@ function renderPlayerAccess(): HTMLElement {
   const input = h('input', { class: 'input', type: 'text', placeholder: 'Pega aquí el enlace de tu tarjeta', autocomplete: 'off' });
   const form = h(
     'form',
-    { class: 'panel' },
+    { class: 'panel', id: 'jugador' },
     h('h2', null, 'Jugador'),
     h('p', null, 'Escanea el código QR de tu tarjeta con la cámara del móvil, o si el anfitrión te ha enviado un enlace, pégalo aquí. No necesitas cuenta de Spotify.'),
     h('div', { class: 'row' }, input, h('button', { class: 'btn', type: 'submit' }, 'Abrir tarjeta')),

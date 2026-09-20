@@ -411,3 +411,31 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
 .table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 .table th, .table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--panel-2); white-space: nowrap; }
 .perm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 12px; margin: 8px 0; }
+
+/* ---- Portada Bingo Hit ---- */
+:root { --gold: #f2c14e; --gold-2: #c8961d; --red: #b3121a; }
+.bh-hero { position: relative; margin: -16px -16px 16px; padding: 28px 18px 24px; overflow: hidden; color: #fff; font-family: 'Montserrat', -apple-system, 'Segoe UI', Roboto, sans-serif; text-align: center; }
+.bh-hero-bg { position: absolute; inset: 0; background: url('img/portada.jpg') center 0% / cover no-repeat; z-index: 0; }
+.bh-hero-bg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(60, 5, 8, 0.5) 0%, rgba(45, 4, 7, 0.9) 30%, rgba(24, 12, 12, 0.98) 55%, rgba(18, 18, 18, 1) 100%); }
+.bh-hero-body { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; }
+.bh-kicker { font-size: 0.7rem; letter-spacing: 0.35em; text-transform: uppercase; color: var(--gold); margin: 0 0 14px; }
+.bh-title { font-size: clamp(3.2rem, 15vw, 5.6rem); font-weight: 900; line-height: 0.95; margin: 0; letter-spacing: -0.02em; text-shadow: 0 6px 30px rgba(0, 0, 0, 0.6); }
+.bh-gold { background: linear-gradient(180deg, #ffe89a 0%, var(--gold) 45%, var(--gold-2) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.bh-sub { font-size: 0.85rem; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 600; margin: 10px 0 4px; }
+.bh-tagline { font-family: 'Great Vibes', 'Brush Script MT', 'Segoe Script', 'Snell Roundhand', cursive; font-style: italic; font-size: clamp(1.8rem, 8vw, 2.6rem); color: var(--gold); margin: 6px 0 14px; line-height: 1.1; }
+.bh-desc { font-size: 0.98rem; line-height: 1.55; color: #f1e6e6; margin: 0 0 18px; text-align: left; }
+.bh-features { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 0 0 18px; }
+.bh-feature { border: 1px solid var(--gold-2); border-radius: 14px; padding: 14px 10px; background: rgba(0, 0, 0, 0.45); display: flex; flex-direction: column; align-items: center; gap: 6px; font-weight: 700; font-size: 0.9rem; line-height: 1.2; }
+.bh-feature-icon { font-size: 1.6rem; }
+.bh-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 0 0 22px; }
+.btn-gold { background: linear-gradient(180deg, #ffe89a, var(--gold) 50%, var(--gold-2)); color: #2a1a00; font-weight: 800; border: none; }
+.btn-gold:hover { filter: brightness(1.05); }
+.btn-outline-gold { background: transparent; color: var(--gold); border: 1.5px solid var(--gold); font-weight: 700; }
+.bh-claim { font-size: clamp(1.5rem, 7vw, 2.4rem); font-weight: 900; margin: 0; letter-spacing: -0.01em; }
+.bh-claim::before, .bh-claim::after { content: ''; display: block; height: 1px; background: linear-gradient(90deg, transparent, var(--gold-2), transparent); margin: 12px auto; width: 70%; }
+.bh-claim-sub { font-size: 0.7rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--gold); margin: 0; }
+@media (min-width: 720px) {
+  .bh-hero { margin: -16px 0 16px; border-radius: 0 0 var(--radius) var(--radius); padding: 40px 24px 32px; }
+  .bh-features { grid-template-columns: repeat(4, 1fr); }
+  .bh-desc { text-align: center; }
+}

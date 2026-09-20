@@ -27,12 +27,12 @@ jobs:
         run: |
           docker run -d --rm --name bingo -p 8080:80 music-bingo:ci
           for i in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:8080/ | grep -q "Bingo musical"; then echo OK; break; fi
+            if curl -fsS http://127.0.0.1:8080/ | grep -q "Bingo Hit"; then echo OK; break; fi
             sleep 1
             [ "$i" = 20 ] && { docker logs bingo; exit 1; }
           done
           curl -fsS http://127.0.0.1:8080/js/main.js >/dev/null
-          curl -fsS http://127.0.0.1:8080/cualquier/ruta | grep -q "Bingo musical"
+          curl -fsS http://127.0.0.1:8080/cualquier/ruta | grep -q "Bingo Hit"
           docker stop bingo
 
   concert-server:
@@ -66,7 +66,7 @@ jobs:
             [ "$i" = 30 ] && { docker logs concert; docker inspect concert --format '{{.State.Status}} {{.State.ExitCode}}'; exit 1; }
           done
           docker logs concert
-          curl -fsS http://127.0.0.1:3010/ | grep -q "Bingo musical"
+          curl -fsS http://127.0.0.1:3010/ | grep -q "Bingo Hit"
           curl -fsS http://127.0.0.1:3010/js/concert/views/dj.js >/dev/null
           curl -fsS http://127.0.0.1:3010/sfu/MediasoupClient.js | head -c 200 >/dev/null
           curl -fsS http://127.0.0.1:3010/socket.io/socket.io.esm.min.js | head -c 100 >/dev/null

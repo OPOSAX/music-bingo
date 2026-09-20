@@ -3,7 +3,9 @@
 import { button, clear, errorMessage, h, toast } from '../../dom.js';
 import { navigate } from '../../router.js';
 import { loadGame } from '../../store.js';
-import { formatMoney, formatWhen, hostApi, resolveServer, tokens, type CardDistribution, type EventMode, type HostEvent } from '../api.js';
+import { currentServer, formatMoney, formatWhen, hostApi, resolveServer, tokens, type CardDistribution, type EventMode, type HostEvent } from '../api.js';
+import { logout } from './login.js';
+import { renderSpotifyPanel } from '../../views/home.js';
 
 const MODE_LABEL: Record<EventMode, string> = { LOCAL: 'Presencial', ONLINE: 'Online', HYBRID: 'Híbrido' };
 const DIST_LABEL: Record<CardDistribution, string> = { FREE: 'Gratis', PAID: 'Pagadas' };
@@ -12,23 +14,24 @@ const STATUS_LABEL: Record<string, string> = { DRAFT: 'Borrador', PUBLISHED: 'Pu
 export async function renderHostEvents(root: HTMLElement, params: URLSearchParams): Promise<void> {
   clear(root);
   const server = await resolveServer(params.get('l'));
-  root.appendChild(h('section', { class: 'page-header' }, h('div', null, h('h1', null, '🎤 Mis eventos Bingo Hit'), h('p', { class: 'muted' }, server ? `Plataforma: ${server}` : 'Sin servidor')), h('div', { class: 'actions' }, button('Partida (Spotify)', () => navigate('/host'), 'btn'), button('Inicio', () => navigate('/'), 'btn btn-link'))));
   if (!server || !tokens.host()) {
-    root.appendChild(renderLogin(root, params, server));
+    navigate('/login?next=' + encodeURIComponent('/events'));
     return;
   }
+  root.appendChild(h('section', { class: 'page-header' }, h('div', null, h('h1', null, '🎤 Panel del animador'), h('p', { class: 'muted' }, `Plataforma: ${server}`)), h('div', { class: 'actions' }, button('Cerrar sesión', () => void logout(), 'btn btn-link'))));
   let me: Awaited<ReturnType<typeof hostApi.me>>;
   try {
     me = await hostApi.me();
   } catch (err) {
     tokens.setHost('');
-    root.appendChild(h('p', { class: 'alert alert-error' }, `No se pudo iniciar sesión: ${errorMessage(err)}`));
-    root.appendChild(renderLogin(root, params, server));
+    toast(`Vuelve a iniciar sesión: ${errorMessage(err)}`, 'error');
+    navigate('/login?next=' + encodeURIComponent('/events'));
     return;
   }
   const list = h('section', { class: 'panel' }, h('h2', null, 'Eventos'));
   const wizardHost = h('div');
-  root.appendChild(h('section', { class: 'panel' }, h('p', null, `Hola, ${me.name}. `, h('span', { class: 'small muted' }, permissionsSummary(me.permissions))), h('div', { class: 'actions' }, button('➕ Nuevo evento', () => { clear(wizardHost); wizardHost.appendChild(renderWizard(me, null, refresh)); wizardHost.scrollIntoView({ behavior: 'smooth' }); }, 'btn btn-primary'), button('Cerrar sesión', () => { tokens.setHost(''); void renderHostEvents(root, params); }, 'btn btn-link'))));
+  root.appendChild(h('section', { class: 'panel' }, h('p', null, `Hola, ${me.name}. `, h('span', { class: 'small muted' }, permissionsSummary(me.permissions))), h('div', { class: 'actions' }, button('➕ Nuevo evento', () => { clear(wizardHost); wizardHost.appendChild(renderWizard(me, null, refresh)); wizardHost.scrollIntoView({ behavior: 'smooth' }); }, 'btn btn-primary'), button('🎤 Karaoke (panel DJ)', () => navigate(`/dj?l=${encodeURIComponent(server)}&token=${encodeURIComponent(tokens.host())}`), 'btn'))));
+  await renderSpotifyPanel(root);
   root.appendChild(wizardHost);
   root.appendChild(list);
   async function refresh(): Promise<void> {
@@ -51,18 +54,6 @@ function permissionsSummary(p: Record<string, boolean | number>): string {
   return `Puedes crear eventos ${modes || '(ninguno)'} con tarjetas ${dist || '(ninguna)'}${p.canStartLive ? ' y transmitir en directo' : ''}. Aforo máximo ${p.maxEventCapacity}.`;
 }
 
-function renderLogin(root: HTMLElement, params: URLSearchParams, server: string): HTMLElement {
-  const url = h('input', { class: 'input', type: 'url', value: server, placeholder: 'https://servidor-bingo-hit' });
-  const tok = h('input', { class: 'input', type: 'password', placeholder: 'Token de animador (te lo da el administrador)', autocomplete: 'off' });
-  const form = h('form', { class: 'panel' }, h('h2', null, 'Acceso de animador'), h('div', { class: 'fields' }, h('label', { class: 'field' }, 'Servidor', url), h('label', { class: 'field' }, 'Token', tok)), h('button', { class: 'btn btn-primary', type: 'submit' }, 'Entrar'));
-  form.addEventListener('submit', async (ev) => {
-    ev.preventDefault();
-    await resolveServer(url.value.trim());
-    tokens.setHost(tok.value.trim());
-    await renderHostEvents(root, params);
-  });
-  return form;
-}
 
 function renderEventCard(e: HostEvent, me: Awaited<ReturnType<typeof hostApi.me>>, refresh: () => Promise<void>, wizardHost: HTMLElement): HTMLElement {
   const s = e.stats;
@@ -73,7 +64,7 @@ function renderEventCard(e: HostEvent, me: Awaited<ReturnType<typeof hostApi.me>
   if (e.status === 'PUBLISHED') actions.appendChild(act('▶ Empezar evento', () => hostApi.start(e.id), 'btn btn-sm btn-primary'));
   if (e.status === 'LIVE') actions.appendChild(act('■ Terminar', () => hostApi.finish(e.id), 'btn btn-sm btn-danger'));
   if (['DRAFT', 'PUBLISHED', 'LIVE'].includes(e.status)) actions.appendChild(button('Editar', () => { clear(wizardHost); wizardHost.appendChild(renderWizard(me, e, refresh)); wizardHost.scrollIntoView({ behavior: 'smooth' }); }, 'btn btn-sm'));
-  if (e.eventMode !== 'LOCAL' && ['PUBLISHED', 'LIVE'].includes(e.status)) actions.appendChild(button('🎥 Transmitir', () => navigate(`/live?event=${encodeURIComponent(e.id)}&l=${encodeURIComponent(location.origin)}&token=${encodeURIComponent(tokens.host())}`), 'btn btn-sm'));
+  if (e.eventMode !== 'LOCAL' && ['PUBLISHED', 'LIVE'].includes(e.status)) actions.appendChild(button('🎥 Transmitir', () => navigate(`/live?event=${encodeURIComponent(e.id)}&l=${encodeURIComponent(currentServer())}&token=${encodeURIComponent(tokens.host())}`), 'btn btn-sm'));
   actions.appendChild(button('🎵 Conducir bingo', () => navigate(`/host?event=${encodeURIComponent(e.id)}`), 'btn btn-sm'));
   const card = h(
     'div',

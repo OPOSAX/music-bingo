@@ -18,7 +18,7 @@ const adminToken = process.env.PLATFORM_ADMIN_TOKEN || 'admin-dev';
 const store = new Store(process.env.PLATFORM_DATA_FILE === 'memory' ? null : path.resolve(process.env.PLATFORM_DATA_FILE || path.join(here, 'data', 'platform-dev.json')));
 const publicUrl = process.env.PUBLIC_URL || `http://127.0.0.1:${port}`;
 const service = new PlatformService(store, { env: process.env, appUrl: `${publicUrl}/`, apiUrl: publicUrl, log: (m) => console.log(m) });
-const api = createPlatformApi(service, { adminToken, mockPayments: true });
+const api = createPlatformApi(service, { adminToken, adminUser: process.env.PLATFORM_ADMIN_USER || 'admin', adminPassword: process.env.PLATFORM_ADMIN_PASSWORD || 'admin-dev', mockPayments: true });
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.txt': 'text/plain; charset=utf-8', '.map': 'application/json' };
 
 const server = createServer(async (req, res) => {

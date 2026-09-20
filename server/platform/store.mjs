@@ -7,7 +7,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 
-export const COLLECTIONS = ['users', 'events', 'players', 'cards', 'orders', 'payments', 'eventAccess', 'promotions', 'webhookLog', 'audit'];
+export const COLLECTIONS = ['users', 'events', 'players', 'cards', 'orders', 'payments', 'eventAccess', 'promotions', 'webhookLog', 'audit', 'sessions'];
 
 /** Migraciones: cada entrada lleva el fichero de la versión n a la n+1. */
 export const MIGRATIONS = [
@@ -15,6 +15,15 @@ export const MIGRATIONS = [
   (db) => {
     for (const c of COLLECTIONS) db[c] ??= [];
     db.settings ??= defaultSettings();
+    return db;
+  },
+  // 1 → 2: acceso con usuario y contraseña (sesiones) y nombre de usuario por animador
+  (db) => {
+    db.sessions ??= [];
+    for (const u of db.users) {
+      u.username ??= (u.email || u.name || u.id).toLowerCase().replace(/[^a-z0-9._-]+/g, '.').replace(/^\.+|\.+$/g, '') || u.id;
+      u.passwordHash ??= null;
+    }
     return db;
   },
 ];

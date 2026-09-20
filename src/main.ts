@@ -7,7 +7,7 @@ import { releaseCardSync, renderPlayerCard } from './views/card.js';
 import { renderCards } from './views/cards.js';
 import { renderDeal } from './views/deal.js';
 import { renderJoin } from './views/join.js';
-import { renderHome } from './views/home.js';
+import { renderHome, renderPlayerEntry } from './views/home.js';
 import { releasePlayer, renderHost } from './views/host.js';
 import { renderSetup } from './views/setup.js';
 import { releaseDj, renderDj } from './concert/views/dj.js';
@@ -18,6 +18,7 @@ import { renderEvent } from './platform/views/event.js';
 import { renderPay } from './platform/views/pay.js';
 import { renderHostEvents } from './platform/views/host-events.js';
 import { renderAdmin } from './platform/views/admin.js';
+import { renderLogin } from './platform/views/login.js';
 
 const root = document.getElementById('app') as HTMLElement;
 
@@ -31,6 +32,12 @@ async function render(route: Route): Promise<void> {
     switch (route.path) {
       case '/':
         await renderHome(root);
+        break;
+      case '/jugar':
+        await renderPlayerEntry(root);
+        break;
+      case '/login':
+        await renderLogin(root, route.params);
         break;
       case '/setup':
         await renderSetup(root);

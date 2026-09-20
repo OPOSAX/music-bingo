@@ -10,7 +10,7 @@ import { Store } from '../platform/store.mjs';
 async function boot() {
   const store = new Store(null);
   const service = new PlatformService(store, { env: { MOCK_PAYMENT_SECRET: 'test-secret' }, appUrl: 'http://app/', apiUrl: 'http://api', liveState: () => ({ concurrentPlayers: 3, liveEvents: 1 }) });
-  const handle = createPlatformApi(service, { adminToken: 'admin-token' });
+  const handle = createPlatformApi(service, { adminToken: 'admin-token', adminUser: 'admin', adminPassword: 'admin-pass' });
   const server = createServer((req, res) => {
     handle(req, res).then((done) => {
       if (!done) {
@@ -22,7 +22,7 @@ async function boot() {
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const call = async (method, path, { token, body } = {}) => {
-    const res = await fetch(base + path, { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    const res = await fetch(base + path, { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json', Connection: 'close' }, body: body ? JSON.stringify(body) : undefined });
     return { status: res.status, data: await res.json() };
   };
   return { store, service, server, call };
@@ -32,7 +32,7 @@ test('roles y permisos: solo el admin crea animadores; permisos validados en el 
   const { server, call } = await boot();
   assert.equal((await call('GET', '/api/admin/stats')).status, 401);
   assert.equal((await call('GET', '/api/admin/stats', { token: 'wrong' })).status, 401);
-  const created = await call('POST', '/api/admin/hosts', { token: 'admin-token', body: { name: 'DJ Ana', email: 'ana@x.cl' } });
+  const created = await call('POST', '/api/admin/hosts', { token: 'admin-token', body: { name: 'DJ Ana', email: 'ana@x.cl', username: 'ana', password: 'secreta1' } });
   assert.equal(created.status, 200);
   const hostToken = created.data.token;
   assert.match(hostToken, /^host_/);
@@ -40,6 +40,23 @@ test('roles y permisos: solo el admin crea animadores; permisos validados en el 
   assert.equal((await call('POST', '/api/admin/hosts', { token: hostToken, body: { name: 'X' } })).status, 403, 'un animador no crea animadores');
   const me = await call('GET', '/api/host/me', { token: hostToken });
   assert.equal(me.data.name, 'DJ Ana');
+  // Inicio de sesión con usuario y contraseña (admin y animador); la sesión da los mismos permisos que el token
+  const badLogin = await call('POST', '/api/auth/login', { body: { username: 'ana', password: 'mala' } });
+  assert.equal(badLogin.status, 401);
+  const adminLogin = await call('POST', '/api/auth/login', { body: { username: 'Admin', password: 'admin-pass' } });
+  assert.equal(adminLogin.data.role, 'PLATFORM_ADMIN');
+  assert.equal((await call('GET', '/api/admin/stats', { token: adminLogin.data.token })).status, 200);
+  const hostLogin = await call('POST', '/api/auth/login', { body: { username: 'ana', password: 'secreta1' } });
+  assert.equal(hostLogin.data.role, 'HOST');
+  const sessionToken = hostLogin.data.token;
+  assert.equal((await call('GET', '/api/auth/me', { token: sessionToken })).data.username, 'ana');
+  assert.equal((await call('POST', '/api/host/events', { token: sessionToken, body: { name: 'Con sesión', eventMode: 'LOCAL', cardDistribution: 'FREE' } })).status, 200);
+  assert.equal((await call('POST', '/api/auth/password', { token: sessionToken, body: { currentPassword: 'secreta1', newPassword: 'nueva123' } })).status, 200);
+  assert.equal((await call('POST', '/api/auth/login', { body: { username: 'ana', password: 'secreta1' } })).status, 401);
+  assert.equal((await call('POST', '/api/auth/login', { body: { username: 'ana', password: 'nueva123' } })).status, 200);
+  await call('POST', '/api/auth/logout', { token: sessionToken });
+  assert.equal((await call('GET', '/api/auth/me', { token: sessionToken })).status, 401, 'la sesión cerrada ya no vale');
+  assert.equal((await call('POST', '/api/admin/hosts', { token: 'admin-token', body: { name: 'Otra', username: 'ana', password: 'secreta1' } })).status, 409, 'usuario duplicado');
   // Sin permiso de eventos pagados
   const paid = await call('POST', '/api/host/events', { token: hostToken, body: { name: 'Fiesta', eventMode: 'ONLINE', cardDistribution: 'PAID' } });
   assert.equal(paid.status, 403);
@@ -63,7 +80,7 @@ test('roles y permisos: solo el admin crea animadores; permisos validados en el 
 
 test('modalidad y distribución desacopladas: LOCAL/ONLINE/HYBRID × FREE/PAID', async () => {
   const { server, call } = await boot();
-  const { data: h } = await call('POST', '/api/admin/hosts', { token: 'admin-token', body: { name: 'H', permissions: { canCreatePaidEvents: true, canCreateHybridEvents: true } } });
+  const { data: h } = await call('POST', '/api/admin/hosts', { token: 'admin-token', body: { name: 'H', username: 'host1', password: 'secreta1', permissions: { canCreatePaidEvents: true, canCreateHybridEvents: true } } });
   for (const eventMode of ['LOCAL', 'ONLINE', 'HYBRID']) {
     for (const cardDistribution of ['FREE', 'PAID']) {
       const r = await call('POST', '/api/host/events', { token: h.token, body: { name: `${eventMode} ${cardDistribution}`, eventMode, cardDistribution } });
@@ -85,7 +102,7 @@ test('modalidad y distribución desacopladas: LOCAL/ONLINE/HYBRID × FREE/PAID',
 
 test('ONLINE + FREE: tarjeta sin checkout, límites y acceso centralizado', async () => {
   const { server, call, service } = await boot();
-  const { data: h } = await call('POST', '/api/admin/hosts', { token: 'admin-token', body: { name: 'H' } });
+  const { data: h } = await call('POST', '/api/admin/hosts', { token: 'admin-token', body: { name: 'H', username: 'host2', password: 'secreta1' } });
   const ev = (await call('POST', '/api/host/events', { token: h.token, body: { name: 'Gratis', eventMode: 'ONLINE', cardDistribution: 'FREE', capacity: 3, free: { maxCardsPerPlayer: 2 }, game: { tracks: [['A', 'a'], ['B', 'b'], ['C', 'c'], ['D', 'd'], ['E', 'e'], ['F', 'f'], ['G', 'g'], ['H', 'h'], ['I', 'i']], gridSize: 3, freeCenter: false }, startsAt: new Date(Date.now() + 3600e3).toISOString() } })).data;
   const p = (await call('POST', '/api/players', { body: { name: 'Marta' } })).data;
   // Borrador: no se puede
@@ -131,7 +148,7 @@ test('ONLINE + FREE: tarjeta sin checkout, límites y acceso centralizado', asyn
 
 test('ONLINE + PAID: orden PENDING, webhook firmado e idempotente, tarjetas tras el pago, reembolso', async () => {
   const { server, call, service } = await boot();
-  const { data: h } = await call('POST', '/api/admin/hosts', { token: 'admin-token', body: { name: 'H', permissions: { canCreatePaidEvents: true } } });
+  const { data: h } = await call('POST', '/api/admin/hosts', { token: 'admin-token', body: { name: 'H', username: 'host3', password: 'secreta1', permissions: { canCreatePaidEvents: true } } });
   await call('PUT', '/api/admin/settings', { token: 'admin-token', body: { pricing: { fixedCardPrice: 2500 }, commission: { platformFeePct: 10 } } });
   const ev = (await call('POST', '/api/host/events', { token: h.token, body: { name: 'Pagado', eventMode: 'ONLINE', cardDistribution: 'PAID', paid: { maxCardsPerPlayer: 3 }, game: { tracks: [['A', 'a'], ['B', 'b'], ['C', 'c'], ['D', 'd'], ['E', 'e'], ['F', 'f'], ['G', 'g'], ['H', 'h'], ['I', 'i']], gridSize: 3, freeCenter: false } } })).data;
   await call('POST', `/api/host/events/${ev.id}/publish`, { token: h.token });
@@ -194,7 +211,7 @@ test('ONLINE + PAID: orden PENDING, webhook firmado e idempotente, tarjetas tras
 
 test('promociones y cortesías: una tarjeta válida no necesita Payment', async () => {
   const { server, call } = await boot();
-  const { data: h } = await call('POST', '/api/admin/hosts', { token: 'admin-token', body: { name: 'H', permissions: { canCreatePaidEvents: true } } });
+  const { data: h } = await call('POST', '/api/admin/hosts', { token: 'admin-token', body: { name: 'H', username: 'host4', password: 'secreta1', permissions: { canCreatePaidEvents: true } } });
   const ev = (await call('POST', '/api/host/events', { token: h.token, body: { name: 'Pagado', eventMode: 'LOCAL', cardDistribution: 'PAID', game: { tracks: [['A', 'a'], ['B', 'b'], ['C', 'c'], ['D', 'd'], ['E', 'e'], ['F', 'f'], ['G', 'g'], ['H', 'h'], ['I', 'i']], gridSize: 3 } } })).data;
   await call('POST', `/api/host/events/${ev.id}/publish`, { token: h.token });
   await call('POST', '/api/admin/promotions', { token: 'admin-token', body: { code: 'vip', type: 'FREE_CARDS', value: 1, maxUses: 1 } });

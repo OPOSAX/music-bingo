@@ -19,116 +19,71 @@ export async function renderHome(root: HTMLElement): Promise<void> {
       if (v.trim()) version.textContent = `Versión ${v.trim()}`;
     })
     .catch(() => undefined);
+}
 
-  if (showClientIdForm || !auth.getClientId()) {
-    root.appendChild(renderClientIdForm());
-    root.appendChild(renderPlayerAccess());
-    root.appendChild(renderConcertAccess());
-    return;
-  }
-
-  if (!auth.isLoggedIn()) {
-    root.appendChild(
-      h(
-        'section',
-        { class: 'panel' },
-        h('h2', null, 'Anfitrión'),
-        h('p', null, 'Inicia sesión con tu cuenta de Spotify Premium para elegir la lista y reproducir las canciones.'),
-        button('Conectar con Spotify', () => auth.login().catch((err) => toast(errorMessage(err), 'error')), 'btn btn-primary btn-lg'),
-        h('p', { class: 'muted small' }, 'Client ID configurado: ', h('code', null, auth.getClientId()), ' ', button('Cambiar', () => { showClientIdForm = true; void renderHome(root); }, 'btn btn-link')),
-      ),
-    );
-    root.appendChild(renderPlayerAccess());
-    root.appendChild(renderConcertAccess());
-    return;
-  }
-
-  const panel = h('section', { class: 'panel' }, h('h2', null, 'Anfitrión'), h('p', { class: 'muted' }, 'Comprobando tu cuenta…'));
-  root.appendChild(panel);
+/** Acceso del jugador (#/jugar): abrir una tarjeta o un enlace de partida. */
+export async function renderPlayerEntry(root: HTMLElement): Promise<void> {
+  clear(root);
+  root.appendChild(h('section', { class: 'page-header' }, h('h1', null, '📱 Jugar'), h('div', { class: 'actions' }, button('Inicio', () => navigate('/'), 'btn btn-link'))));
   root.appendChild(renderPlayerAccess());
-  root.appendChild(renderConcertAccess());
+  root.appendChild(
+    h('section', { class: 'panel' }, h('h2', null, '🎤 Karaoke'), h('p', { class: 'muted' }, 'Si el DJ del evento abrió el karaoke, apúntate para cantar desde tu móvil.'), h('div', { class: 'actions' }, button('Quiero cantar', () => navigate('/sing'), 'btn btn-primary'))),
+  );
+}
 
+/** Partida musical con Spotify: conexión de la cuenta y creación/continuación de la partida (dentro del panel del animador). */
+export async function renderSpotifyPanel(root: HTMLElement): Promise<void> {
+  const wrap = h('div');
+  root.appendChild(wrap);
+  await drawSpotifyPanel(wrap);
+}
+
+async function drawSpotifyPanel(wrap: HTMLElement): Promise<void> {
+  clear(wrap);
+  const panel = h('section', { class: 'panel' }, h('h2', null, '🎵 Partida musical (Spotify)'));
+  wrap.appendChild(panel);
+  const again = () => void drawSpotifyPanel(wrap);
+  if (showClientIdForm || !auth.getClientId()) {
+    panel.appendChild(renderClientIdForm(again));
+    return;
+  }
+  if (!auth.isLoggedIn()) {
+    panel.appendChild(h('p', null, 'Conecta la cuenta de Spotify Premium que reproducirá la música del evento.'));
+    panel.appendChild(button('Conectar con Spotify', () => auth.login().catch((err) => toast(errorMessage(err), 'error')), 'btn btn-primary btn-lg'));
+    panel.appendChild(h('p', { class: 'muted small' }, 'Client ID: ', h('code', null, auth.getClientId()), ' ', button('Cambiar', () => { showClientIdForm = true; again(); }, 'btn btn-link')));
+    return;
+  }
+  const status = h('p', { class: 'muted' }, 'Comprobando tu cuenta…');
+  panel.appendChild(status);
   try {
     const me = await api.getMe();
-    clear(panel);
     const premium = me.product === 'premium';
-    panel.appendChild(h('h2', null, 'Anfitrión'));
-    panel.appendChild(
+    status.replaceWith(
       h(
         'p',
         { class: 'user-line' },
         me.images?.[0] ? h('img', { class: 'avatar', src: me.images[0].url, alt: '' }) : null,
-        h('span', null, 'Conectado como ', h('strong', null, me.display_name || me.id)),
-        h('span', { class: premium ? 'badge badge-ok' : 'badge badge-warn' }, premium ? 'Premium' : me.product ?? 'sin premium'),
+        h('span', null, 'Conectado como ', h('strong', null, me.display_name || me.id), premium ? h('span', { class: 'badge badge-ok' }, 'Premium') : h('span', { class: 'badge badge-warn' }, 'Sin Premium')),
       ),
     );
-    if (!premium) {
-      panel.appendChild(
-        h('p', { class: 'alert alert-warn' }, 'La reproducción en el navegador y el control remoto requieren Spotify Premium. Podrás preparar tarjetas, pero no reproducir las canciones.'),
-      );
-    }
+    if (!premium) panel.appendChild(h('p', { class: 'alert alert-warn' }, 'La reproducción necesita Spotify Premium.'));
     const missing = auth.missingScopes();
-    if (missing.length) {
-      panel.appendChild(h('p', { class: 'alert alert-warn' }, `Spotify no concedió estos permisos: ${missing.join(', ')}. Cierra sesión y vuelve a conectar aceptando todos los permisos.`));
-    }
-    panel.appendChild(h('p', { class: 'muted small' }, `Usuario ${me.id} · cuenta ${me.product ?? 'desconocida'} · permisos concedidos: ${auth.grantedScopes().length || '?'} de ${auth.SCOPES.length}`));
+    if (missing.length) panel.appendChild(h('p', { class: 'alert alert-warn' }, `Spotify no concedió estos permisos: ${missing.join(', ')}. Cierra sesión y vuelve a conectar aceptando todos los permisos.`));
     const game = loadGame();
     const actions = h('div', { class: 'actions' });
     if (game) {
-      actions.appendChild(button(`Continuar partida ${game.config.seed} (${game.position}/${game.tracks.length} canciones)`, () => navigate('/host'), 'btn btn-primary btn-lg'));
-      actions.appendChild(button('Ver tarjetas', () => navigate('/cards'), 'btn'));
-      actions.appendChild(
-        button('Borrar partida', () => {
-          if (confirm('¿Seguro que quieres borrar la partida actual? Las tarjetas dejarán de ser válidas.')) {
-            clearGame();
-            void renderHome(root);
-          }
-        }, 'btn btn-danger'),
-      );
+      actions.appendChild(button(`Continuar: ${game.playlistName}`, () => navigate('/host'), 'btn btn-primary'));
+      actions.appendChild(button('Nueva partida', () => { if (confirm('¿Descartar la partida actual y crear otra?')) { clearGame(); navigate('/setup'); } }, 'btn'));
+    } else {
+      actions.appendChild(button('Crear partida', () => navigate('/setup'), 'btn btn-primary'));
     }
-    actions.appendChild(button(game ? 'Nueva partida' : 'Crear partida', () => navigate('/setup'), game ? 'btn' : 'btn btn-primary btn-lg'));
-    actions.appendChild(button('Cerrar sesión', () => { auth.logout(); void renderHome(root); }, 'btn btn-link'));
+    actions.appendChild(button('Cerrar sesión de Spotify', () => { auth.logout(); again(); }, 'btn btn-link'));
     panel.appendChild(actions);
   } catch (err) {
-    clear(panel);
-    panel.appendChild(h('h2', null, 'Anfitrión'));
+    status.textContent = '';
     panel.appendChild(h('p', { class: 'alert alert-error' }, errorMessage(err)));
-    panel.appendChild(button('Volver a conectar con Spotify', () => { auth.logout(); auth.login().catch((e) => toast(errorMessage(e), 'error')); }, 'btn btn-primary'));
+    panel.appendChild(button('Volver a conectar', () => { auth.logout(); again(); }, 'btn'));
   }
-}
-
-function renderClientIdForm(): HTMLElement {
-  const input = h('input', { class: 'input', type: 'text', placeholder: 'Client ID de tu app de Spotify', autocomplete: 'off', spellcheck: false, value: auth.getClientId() });
-  const uri = auth.redirectUri();
-  const form = h(
-    'form',
-    { class: 'panel' },
-    h('h2', null, 'Primer paso: conecta tu app de Spotify'),
-    h(
-      'ol',
-      { class: 'steps' },
-      h('li', null, 'Entra en ', h('a', { href: 'https://developer.spotify.com/dashboard', target: '_blank', rel: 'noopener' }, 'developer.spotify.com/dashboard'), ' y crea una app (Create app).'),
-      h('li', null, 'En "Redirect URIs" añade exactamente: ', h('code', { class: 'copyable' }, uri), ' ', button('Copiar', () => { void copyText(uri).then((ok) => toast(ok ? 'Copiado' : 'No se pudo copiar', ok ? 'success' : 'error')); }, 'btn btn-sm')),
-      h('li', null, 'Marca "Web API" y "Web Playback SDK" y guarda.'),
-      h('li', null, 'Copia el Client ID de la app y pégalo aquí.'),
-    ),
-    h('div', { class: 'row' }, input, h('button', { class: 'btn btn-primary', type: 'submit' }, 'Guardar')),
-    h('p', { class: 'muted small' }, 'El Client ID se guarda solo en este navegador. No hace falta client secret. ', auth.isUsingDefaultClientId() ? null : button('Volver al Client ID por defecto', () => { auth.setClientId(''); showClientIdForm = false; void renderHome(form.parentElement as HTMLElement); }, 'btn btn-link')),
-  );
-  form.addEventListener('submit', (ev) => {
-    ev.preventDefault();
-    const value = input.value.trim();
-    if (!/^[a-f0-9]{32}$/i.test(value)) {
-      toast('El Client ID debe tener 32 caracteres hexadecimales.', 'error');
-      return;
-    }
-    auth.setClientId(value);
-    showClientIdForm = false;
-    toast('Client ID guardado', 'success');
-    const root = form.parentElement as HTMLElement;
-    void renderHome(root);
-  });
-  return form;
 }
 
 /** Portada de marca: qué es Bingo Hit, para quién y cómo se juega. */
@@ -161,32 +116,11 @@ function renderLanding(): HTMLElement {
       h(
         'div',
         { class: 'bh-actions' },
-        button('🎤 Soy animador', () => navigate('/events'), 'btn btn-gold'),
-        button('📱 Quiero jugar', () => document.getElementById('jugador')?.scrollIntoView({ behavior: 'smooth' }), 'btn btn-outline-gold'),
+        button('Iniciar', () => navigate('/login'), 'btn btn-gold btn-lg'),
+        button('📱 Tengo un enlace o QR', () => navigate('/jugar'), 'btn btn-outline-gold'),
       ),
       h('p', { class: 'bh-claim' }, 'Escucha. Juega. Canta. Gana.'),
       h('p', { class: 'bh-claim-sub' }, 'Más que música, es conexión'),
-    ),
-  );
-}
-
-function renderConcertAccess(): HTMLElement {
-  return h(
-    'div',
-    null,
-    h(
-      'section',
-      { class: 'panel' },
-      h('h2', null, '🎟 Eventos'),
-      h('p', { class: 'muted' }, 'Animadores: crea y configura tus eventos (presencial, online o híbrido; tarjetas gratis o pagadas). Administrador: pagos, permisos y métricas.'),
-      h('div', { class: 'actions' }, button('Mis eventos (animador)', () => navigate('/events'), 'btn'), button('Administración', () => navigate('/admin'), 'btn btn-link')),
-    ),
-    h(
-      'section',
-      { class: 'panel concert-access' },
-      h('h2', null, '🎤 Karaoke'),
-      h('p', { class: 'muted' }, 'El público canta desde su móvil y el DJ decide quién suena por los altavoces.'),
-      h('div', { class: 'actions' }, button('Panel del DJ', () => navigate('/dj'), 'btn'), button('Quiero cantar', () => navigate('/sing'), 'btn btn-primary')),
     ),
   );
 }
@@ -214,6 +148,40 @@ function renderPlayerAccess(): HTMLElement {
       return;
     }
     navigate(`/card?d=${match[1]}`);
+  });
+  return form;
+}
+
+/** Formulario del Client ID de Spotify; `onSaved` se llama al guardar o al volver al valor por defecto. */
+function renderClientIdForm(onSaved: () => void): HTMLElement {
+  const input = h('input', { class: 'input', type: 'text', placeholder: 'Client ID de tu app de Spotify', autocomplete: 'off', spellcheck: false, value: auth.getClientId() });
+  const uri = auth.redirectUri();
+  const form = h(
+    'form',
+    { class: 'client-id-form' },
+    h('h3', null, 'Conecta tu app de Spotify'),
+    h(
+      'ol',
+      { class: 'steps' },
+      h('li', null, 'Entra en ', h('a', { href: 'https://developer.spotify.com/dashboard', target: '_blank', rel: 'noopener' }, 'developer.spotify.com/dashboard'), ' y crea una app (Create app).'),
+      h('li', null, 'En "Redirect URIs" añade exactamente: ', h('code', { class: 'copyable' }, uri), ' ', button('Copiar', () => { void copyText(uri).then((ok) => toast(ok ? 'Copiado' : 'No se pudo copiar', ok ? 'success' : 'error')); }, 'btn btn-sm')),
+      h('li', null, 'Marca "Web API" y "Web Playback SDK" y guarda.'),
+      h('li', null, 'Copia el Client ID de la app y pégalo aquí.'),
+    ),
+    h('div', { class: 'row' }, input, h('button', { class: 'btn btn-primary', type: 'submit' }, 'Guardar')),
+    h('p', { class: 'muted small' }, 'El Client ID se guarda solo en este navegador. No hace falta client secret. ', auth.isUsingDefaultClientId() ? null : button('Volver al Client ID por defecto', () => { auth.setClientId(''); showClientIdForm = false; onSaved(); }, 'btn btn-link')),
+  );
+  form.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const value = input.value.trim();
+    if (!/^[a-f0-9]{32}$/i.test(value)) {
+      toast('El Client ID debe tener 32 caracteres hexadecimales.', 'error');
+      return;
+    }
+    auth.setClientId(value);
+    showClientIdForm = false;
+    toast('Client ID guardado', 'success');
+    onSaved();
   });
   return form;
 }

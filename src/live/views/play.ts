@@ -37,10 +37,11 @@ export async function renderPlay(root: HTMLElement, params: URLSearchParams): Pr
         navigate(`/event?e=${encodeURIComponent(event)}`);
         return;
       }
-      if (!(err instanceof ApiError && err.status === 404)) {
+      if (err instanceof ApiError && err.status !== 404) {
         root.appendChild(h('section', { class: 'panel' }, h('p', { class: 'alert alert-error' }, errorMessage(err))));
         return;
       }
+      // Sin respuesta del servidor (red caída): la partida clásica reintenta la conexión.
     }
   } else {
     try {
@@ -48,7 +49,7 @@ export async function renderPlay(root: HTMLElement, params: URLSearchParams): Pr
       navigate(`/event?e=${encodeURIComponent(event)}`);
       return;
     } catch (err) {
-      if (!(err instanceof ApiError && err.status === 404)) {
+      if (err instanceof ApiError && err.status !== 404) {
         root.appendChild(h('section', { class: 'panel' }, h('p', { class: 'alert alert-error' }, errorMessage(err))));
         return;
       }

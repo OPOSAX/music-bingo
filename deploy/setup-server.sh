@@ -79,7 +79,7 @@ set_env() { # clave valor
 }
 env_value() { grep -s "^$1=" .env | cut -d= -f2- || true; }
 gen_secret() { tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32; }
-for key in PLATFORM_ADMIN_TOKEN LIVE_HOST_TOKEN CONCERT_DJ_TOKEN MOCK_PAYMENT_SECRET; do
+for key in PLATFORM_ADMIN_TOKEN PLATFORM_ADMIN_PASSWORD LIVE_HOST_TOKEN CONCERT_DJ_TOKEN MOCK_PAYMENT_SECRET; do
   v="$(env_value "$key")"
   case "$v" in ""|cambia-*) set_env "$key" "$(gen_secret)" ;; esac
 done
@@ -264,7 +264,8 @@ log "Listo. El sistema estará en $APP_URL en cuanto el DNS y el certificado est
 echo "Registra $APP_URL como Redirect URI en https://developer.spotify.com/dashboard"
 echo
 echo "Accesos (guárdalos; también están en $APP_DIR/.env):"
-echo "  Administrador general (#/admin):   $(env_value PLATFORM_ADMIN_TOKEN)"
+echo "  Iniciar sesión (#/login): usuario admin · contraseña $(env_value PLATFORM_ADMIN_PASSWORD)"
+echo "  Token API del administrador:       $(env_value PLATFORM_ADMIN_TOKEN)"
 echo "  Animador Live / DJ (#/live, #/dj): $(env_value LIVE_HOST_TOKEN)"
 echo
 echo "Comprobación: curl -s ${APP_URL}health"

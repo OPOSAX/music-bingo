@@ -112,7 +112,8 @@ export async function startServer(options = {}) {
         }),
     });
     const platformAdminHash = hashToken(platformAdminToken);
-    const platformApi = createPlatformApi(platform, { adminToken: platformAdminToken, mockPayments: env.MOCK_PAYMENTS !== 'false' });
+    if (!env.PLATFORM_ADMIN_PASSWORD) log.warn('PLATFORM_ADMIN_PASSWORD no definida: el inicio de sesión del administrador con usuario y contraseña está desactivado (usa el token)');
+    const platformApi = createPlatformApi(platform, { adminToken: platformAdminToken, adminUser: env.PLATFORM_ADMIN_USER || 'admin', adminPassword: env.PLATFORM_ADMIN_PASSWORD || '', mockPayments: env.MOCK_PAYMENTS !== 'false' });
 
     // ---- mediasoup workers (adaptado de B-Talk Server.js createWorkers) ----
     const workers = [];
@@ -215,6 +216,8 @@ export async function startServer(options = {}) {
         const who = identify(store, token, platformAdminHash);
         if (who.role === 'PLATFORM_ADMIN') return { role: 'admin', who };
         if (who.role === 'HOST' && platform.canOperateRoom(who.user, roomId)) return { role: 'dj', who };
+        // Un animador activo también puede operar salas de partidas sin evento registrado (QR clásico).
+        if (who.role === 'HOST' && who.user.status === 'ACTIVE' && !platform.eventByRoom(roomId)) return { role: 'dj', who };
         if (who.role === 'PLAYER') return { role: 'participant', who };
         return { role: 'participant', who: { role: 'ANON' } };
     }

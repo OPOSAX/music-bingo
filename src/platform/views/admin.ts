@@ -3,6 +3,7 @@
 import { button, clear, errorMessage, h, toast } from '../../dom.js';
 import { navigate } from '../../router.js';
 import { adminApi, formatMoney, resolveServer, tokens } from '../api.js';
+import { logout } from './login.js';
 
 const PERMS: [string, string][] = [
   ['canCreateLocalEvents', 'Presencial'],
@@ -17,11 +18,11 @@ const PERMS: [string, string][] = [
 export async function renderAdmin(root: HTMLElement, params: URLSearchParams): Promise<void> {
   clear(root);
   const server = await resolveServer(params.get('l'));
-  root.appendChild(h('section', { class: 'page-header' }, h('div', null, h('h1', null, '🛠 Administración Bingo Hit'), h('p', { class: 'muted' }, server || 'Sin servidor')), h('div', { class: 'actions' }, button('Inicio', () => navigate('/'), 'btn btn-link'))));
   if (!server || !tokens.admin()) {
-    root.appendChild(renderLogin(root, params, server));
+    navigate('/login?next=' + encodeURIComponent('/admin'));
     return;
   }
+  root.appendChild(h('section', { class: 'page-header' }, h('div', null, h('h1', null, '🛠 Administración Bingo Hit'), h('p', { class: 'muted' }, server)), h('div', { class: 'actions' }, button('Inicio', () => navigate('/'), 'btn btn-link'))));
   const tabs = h('div', { class: 'actions' });
   const body = h('div');
   root.appendChild(tabs);
@@ -46,27 +47,15 @@ export async function renderAdmin(root: HTMLElement, params: URLSearchParams): P
       body.appendChild(h('p', { class: 'alert alert-error' }, errorMessage(err)));
       if (String(errorMessage(err)).includes('autorizado')) {
         tokens.setAdmin('');
-        body.appendChild(renderLogin(root, params, server));
+        navigate('/login?next=' + encodeURIComponent('/admin'));
       }
     }
   };
   sections.forEach(([label], i) => tabs.appendChild(button(label, () => void show(i), 'btn btn-sm')));
-  tabs.appendChild(button('Salir', () => { tokens.setAdmin(''); void renderAdmin(root, params); }, 'btn btn-sm btn-link'));
+  tabs.appendChild(button('Salir', () => void logout(), 'btn btn-sm btn-link'));
   await show(0);
 }
 
-function renderLogin(root: HTMLElement, params: URLSearchParams, server: string): HTMLElement {
-  const url = h('input', { class: 'input', type: 'url', value: server, placeholder: 'https://servidor-bingo-hit' });
-  const tok = h('input', { class: 'input', type: 'password', placeholder: 'PLATFORM_ADMIN_TOKEN', autocomplete: 'off' });
-  const form = h('form', { class: 'panel' }, h('h2', null, 'Acceso de administrador'), h('div', { class: 'fields' }, h('label', { class: 'field' }, 'Servidor', url), h('label', { class: 'field' }, 'Token', tok)), h('button', { class: 'btn btn-primary', type: 'submit' }, 'Entrar'));
-  form.addEventListener('submit', async (ev) => {
-    ev.preventDefault();
-    await resolveServer(url.value.trim());
-    tokens.setAdmin(tok.value.trim());
-    await renderAdmin(root, params);
-  });
-  return form;
-}
 
 function kv(label: string, value: string | number): HTMLElement {
   return h('div', { class: 'stat' }, h('strong', null, String(value)), ' ', h('span', { class: 'small muted' }, label));
@@ -106,15 +95,18 @@ async function renderHosts(): Promise<HTMLElement> {
   const el = h('section', { class: 'panel' }, h('h2', null, 'Animadores'));
   const name = h('input', { class: 'input', type: 'text', placeholder: 'Nombre', required: true });
   const email = h('input', { class: 'input', type: 'email', placeholder: 'Email' });
-  const create = h('form', { class: 'row' }, name, email, h('button', { class: 'btn btn-primary', type: 'submit' }, 'Crear animador'));
+  const username = h('input', { class: 'input', type: 'text', placeholder: 'Usuario (para iniciar sesión)', autocomplete: 'off', autocapitalize: 'none', required: true, minLength: 3 });
+  const password = h('input', { class: 'input', type: 'password', placeholder: 'Contraseña (mín. 6)', autocomplete: 'new-password', required: true, minLength: 6 });
+  const create = h('form', { class: 'row' }, name, email, username, password, h('button', { class: 'btn btn-primary', type: 'submit' }, 'Crear animador'));
   const tokenBox = h('p', { class: 'alert alert-warn small' });
   tokenBox.hidden = true;
   create.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     try {
-      const r = await adminApi.createHost({ name: name.value.trim(), email: email.value.trim() });
+      const r = await adminApi.createHost({ name: name.value.trim(), email: email.value.trim(), username: username.value.trim(), password: password.value });
       tokenBox.hidden = false;
-      tokenBox.replaceChildren('Token del animador (se muestra una sola vez): ', h('code', null, r.token));
+      tokenBox.replaceChildren(`Animador creado. Entra en "Iniciar" con el usuario ${username.value.trim().toLowerCase()} y su contraseña. Token de API (se muestra una sola vez): `, h('code', null, r.token));
+      create.reset();
       el.appendChild(hostRow(await adminApi.hosts().then((hs) => hs.find((x) => x.id === r.user.id)!)));
     } catch (err) {
       toast(errorMessage(err), 'error');
@@ -126,7 +118,7 @@ async function renderHosts(): Promise<HTMLElement> {
   return el;
 }
 
-function hostRow(hst: { id: string; name: string; email: string; status: string; permissions: Record<string, boolean | number> }): HTMLElement {
+function hostRow(hst: { id: string; name: string; email: string; username?: string; status: string; permissions: Record<string, boolean | number> }): HTMLElement {
   const perms = h('div', { class: 'perm-grid' });
   const checks: Record<string, HTMLInputElement> = {};
   for (const [key, label] of PERMS) {
@@ -136,7 +128,7 @@ function hostRow(hst: { id: string; name: string; email: string; status: string;
   const cap = h('input', { class: 'input', type: 'number', min: '1', value: String(hst.permissions.maxEventCapacity ?? 500) });
   perms.appendChild(h('label', { class: 'field small' }, 'Aforo máx.', cap));
   const statusBadge = h('span', { class: `badge ${hst.status === 'ACTIVE' ? 'badge-ok' : 'badge-warn'}` }, hst.status === 'ACTIVE' ? 'activo' : 'suspendido');
-  const row = h('div', { class: 'event-card' }, h('div', { class: 'row space' }, h('h3', null, `${hst.name} `, h('span', { class: 'small muted' }, hst.email)), statusBadge), perms);
+  const row = h('div', { class: 'event-card' }, h('div', { class: 'row space' }, h('h3', null, `${hst.name} `, h('span', { class: 'small muted' }, `usuario: ${hst.username ?? '—'}${hst.email ? ` · ${hst.email}` : ''}`)), statusBadge), perms);
   const save = button('Guardar permisos', async () => {
     const permissions: Record<string, boolean | number> = {};
     for (const key of Object.keys(checks)) permissions[key] = (checks[key] as HTMLInputElement).checked;
@@ -167,7 +159,17 @@ function hostRow(hst: { id: string; name: string; email: string; status: string;
       toast(errorMessage(err), 'error');
     }
   }, 'btn btn-sm');
-  row.appendChild(h('div', { class: 'actions' }, save, toggle, rotate));
+  const resetPassword = button('Nueva contraseña', async () => {
+    const pwd = prompt(`Nueva contraseña para ${hst.name} (mínimo 6 caracteres):`);
+    if (!pwd) return;
+    try {
+      await adminApi.updateHost(hst.id, { password: pwd });
+      toast('Contraseña actualizada', 'success');
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    }
+  }, 'btn btn-sm');
+  row.appendChild(h('div', { class: 'actions' }, save, toggle, resetPassword, rotate));
   return row;
 }
 

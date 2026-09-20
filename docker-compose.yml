@@ -73,6 +73,8 @@ services:
       TURN_SECRET: ${TURN_SECRET:-}
       # Plataforma Bingo Hit
       PLATFORM_ADMIN_TOKEN: ${PLATFORM_ADMIN_TOKEN:-}
+      PLATFORM_ADMIN_USER: ${PLATFORM_ADMIN_USER:-admin}
+      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}
       PLATFORM_DATA_FILE: /srv/server/data/platform.json
       PUBLIC_URL: ${PUBLIC_URL:-}
       PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}

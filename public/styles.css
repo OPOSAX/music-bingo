@@ -439,3 +439,7 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
   .bh-features { grid-template-columns: repeat(4, 1fr); }
   .bh-desc { text-align: center; }
 }
+
+/* Inicio de sesión */
+.login-panel { max-width: 440px; margin: 24px auto; }
+.login-panel .fields { grid-template-columns: 1fr; }

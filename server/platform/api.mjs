@@ -3,7 +3,7 @@
  * Toda autorización es server-side: rol por token Bearer, permisos del animador, propiedad de eventos y tarjetas.
  */
 
-import { hashToken, identify } from './auth.mjs';
+import { hashPassword, hashToken, identify } from './auth.mjs';
 import { PlatformError } from './service.mjs';
 
 const MAX_BODY = 256 * 1024;
@@ -52,6 +52,7 @@ function pattern(path) {
 /** Crea el manejador HTTP. Devuelve `handle(req, res) → boolean` (false si la ruta no es de la API). */
 export function createPlatformApi(service, options = {}) {
   const adminTokenHash = options.adminToken ? hashToken(options.adminToken) : null;
+  const adminCredentials = options.adminPassword ? { username: String(options.adminUser || 'admin').toLowerCase(), passwordHash: hashPassword(options.adminPassword) } : null;
   const mockEnabled = options.mockPayments !== false;
   const routes = [];
   const on = (method, path, auth, handler) => routes.push({ method, ...pattern(path), auth, handler });
@@ -68,6 +69,24 @@ export function createPlatformApi(service, options = {}) {
   const maskSettings = (s) => ({
     ...s,
     payments: { ...s.payments, providers: { transbank: { ...s.payments.providers.transbank, apiKey: s.payments.providers.transbank.apiKey ? '••••' : '' }, mercadopago: { ...s.payments.providers.mercadopago, accessToken: s.payments.providers.mercadopago.accessToken ? '••••' : '', webhookSecret: s.payments.providers.mercadopago.webhookSecret ? '••••' : '' } } },
+  });
+
+  /* ---- Sesión (usuario y contraseña) ---- */
+  on('POST', '/api/auth/login', 'any', ({ body }) => service.login(body.username, body.password, adminCredentials));
+  on('POST', '/api/auth/logout', 'any', ({ headers }) => {
+    const auth = String(headers.authorization || '');
+    if (auth.startsWith('Bearer ')) service.logout(auth.slice(7).trim());
+    return {};
+  });
+  on('GET', '/api/auth/me', 'any', ({ who }) => {
+    if (who.role === 'PLATFORM_ADMIN') return { role: 'PLATFORM_ADMIN', id: 'admin', name: 'Administrador' };
+    if (who.role === 'HOST') return { role: 'HOST', id: who.user.id, name: who.user.name, username: who.user.username, permissions: who.user.permissions };
+    throw new PlatformError(401, 'auth', 'Sin sesión');
+  });
+  on('POST', '/api/auth/password', 'any', ({ who, body }) => {
+    requireRole(who, 'HOST');
+    service.setPassword(who.id, body.newPassword, body.currentPassword ?? '');
+    return {};
   });
 
   /* ---- Público ---- */
@@ -116,7 +135,7 @@ export function createPlatformApi(service, options = {}) {
   };
   on('GET', '/api/host/me', 'any', ({ who }) => {
     const h = host(who);
-    return { id: h.id, role: h.role, name: h.name ?? 'Administrador', permissions: h.permissions, pricing: { hostCanSetPrice: service.settings.pricing.hostCanSetPrice && !!h.permissions.canSetCardPrice, fixedCardPrice: service.settings.pricing.fixedCardPrice, minimumCardPrice: service.settings.pricing.minimumCardPrice, maximumCardPrice: service.settings.pricing.maximumCardPrice, currency: service.settings.pricing.defaultCurrency } };
+    return { id: h.id, role: h.role, name: h.name ?? 'Administrador', username: h.username ?? 'admin', permissions: h.permissions, pricing: { hostCanSetPrice: service.settings.pricing.hostCanSetPrice && !!h.permissions.canSetCardPrice, fixedCardPrice: service.settings.pricing.fixedCardPrice, minimumCardPrice: service.settings.pricing.minimumCardPrice, maximumCardPrice: service.settings.pricing.maximumCardPrice, currency: service.settings.pricing.defaultCurrency } };
   });
   on('GET', '/api/host/events', 'any', ({ who }) => {
     const h = host(who);

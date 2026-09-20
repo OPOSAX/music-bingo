@@ -4,7 +4,7 @@
  * órdenes y pagos centralizados, acceso server-side y estadísticas.
  */
 
-import { hashToken, newId, newToken } from './auth.mjs';
+import { closeSession, hashPassword, hashToken, newId, newToken, openSession, passwordMatches } from './auth.mjs';
 import { providerFromSettings } from './payments.mjs';
 import { defaultPermissions } from './store.mjs';
 
@@ -46,13 +46,49 @@ export class PlatformService {
 
   /* ---------------- Animadores (solo administrador) ---------------- */
 
-  createHost({ name, email, permissions = {} }) {
+  normalizeUsername(username) {
+    const u = String(username ?? '').trim().toLowerCase();
+    if (!/^[a-z0-9._@-]{3,60}$/.test(u)) throw new PlatformError(400, 'username', 'Usuario inválido: 3 a 60 caracteres (letras, números, punto, guion, @)');
+    return u;
+  }
+
+  createHost({ name, email, username, password, permissions = {} }) {
     if (!name) throw new PlatformError(400, 'name', 'Nombre obligatorio');
+    const user_name = this.normalizeUsername(username || email || name);
+    if (user_name === 'admin' || this.store.find('users', (u) => u.username === user_name)) throw new PlatformError(409, 'username', 'Ese usuario ya existe');
+    if (!password || String(password).length < 6) throw new PlatformError(400, 'password', 'La contraseña debe tener al menos 6 caracteres');
     const token = newToken('host');
-    const user = { id: newId('host'), role: 'HOST', name: String(name).slice(0, 80), email: String(email ?? '').slice(0, 120), status: 'ACTIVE', permissions: { ...defaultPermissions(), ...permissions }, tokenHash: hashToken(token), createdAt: now() };
+    const user = { id: newId('host'), role: 'HOST', name: String(name).slice(0, 80), email: String(email ?? '').slice(0, 120), username: user_name, passwordHash: hashPassword(password), status: 'ACTIVE', permissions: { ...defaultPermissions(), ...permissions }, tokenHash: hashToken(token), createdAt: now() };
     this.store.insert('users', user);
     this.store.audit('admin', 'host.create', { hostId: user.id });
     return { user: this.publicUser(user), token };
+  }
+
+  /** Inicio de sesión con usuario y contraseña (administrador o animador). Devuelve un token de sesión. */
+  login(username, password, adminCredentials) {
+    const u = String(username ?? '').trim().toLowerCase();
+    if (adminCredentials && u === adminCredentials.username && adminCredentials.passwordHash && passwordMatches(password, adminCredentials.passwordHash)) {
+      this.store.audit('admin', 'login');
+      return { token: openSession(this.store, 'admin', 'PLATFORM_ADMIN'), role: 'PLATFORM_ADMIN', name: 'Administrador', id: 'admin' };
+    }
+    const user = this.store.find('users', (x) => x.username === u);
+    if (!user || !passwordMatches(password, user.passwordHash)) throw new PlatformError(401, 'credentials', 'Usuario o contraseña incorrectos');
+    if (user.status !== 'ACTIVE') throw new PlatformError(403, 'suspended', 'Cuenta suspendida');
+    this.store.audit(user.id, 'login');
+    return { token: openSession(this.store, user.id, user.role), role: user.role, name: user.name, id: user.id };
+  }
+
+  logout(token) {
+    closeSession(this.store, token);
+  }
+
+  setPassword(userId, newPassword, currentPassword) {
+    const user = this.store.get('users', userId);
+    if (!user) throw new PlatformError(404, 'user', 'Usuario no encontrado');
+    if (currentPassword !== undefined && !passwordMatches(currentPassword, user.passwordHash)) throw new PlatformError(401, 'credentials', 'Contraseña actual incorrecta');
+    if (!newPassword || String(newPassword).length < 6) throw new PlatformError(400, 'password', 'La contraseña debe tener al menos 6 caracteres');
+    this.store.update('users', userId, { passwordHash: hashPassword(newPassword) });
+    this.store.audit(userId, 'password.change');
   }
 
   updateHost(id, patch) {
@@ -63,6 +99,15 @@ export class PlatformService {
     if (patch.email !== undefined) next.email = String(patch.email).slice(0, 120);
     if (patch.status && ['ACTIVE', 'SUSPENDED'].includes(patch.status)) next.status = patch.status;
     if (patch.permissions) next.permissions = { ...user.permissions, ...patch.permissions };
+    if (patch.username) {
+      const u = this.normalizeUsername(patch.username);
+      if (this.store.find('users', (x) => x.username === u && x.id !== id)) throw new PlatformError(409, 'username', 'Ese usuario ya existe');
+      next.username = u;
+    }
+    if (patch.password) {
+      if (String(patch.password).length < 6) throw new PlatformError(400, 'password', 'La contraseña debe tener al menos 6 caracteres');
+      next.passwordHash = hashPassword(patch.password);
+    }
     this.store.update('users', id, next);
     this.store.audit('admin', 'host.update', { hostId: id, patch: Object.keys(next) });
     return this.publicUser(user);
@@ -81,7 +126,7 @@ export class PlatformService {
   }
 
   publicUser(u) {
-    const { tokenHash: _t, ...rest } = u;
+    const { tokenHash: _t, passwordHash: _p, ...rest } = u;
     return rest;
   }
 

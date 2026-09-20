@@ -48,7 +48,12 @@ Público: `GET /api/platform/info`, `GET /api/events`, `GET /api/events/:id`, `P
 `GET /api/events/:id/access`, `POST /api/events/:id/cards/free`, `POST /api/events/:id/orders`, `GET /api/orders/:id`,
 `POST|GET /api/payments/:provider/webhook`, `POST /api/payments/mock/simulate` (solo proveedor mock).
 
-Animador (`Authorization: Bearer host_…`): `GET /api/host/me`, `GET|POST /api/host/events`, `GET|PATCH /api/host/events/:id`,
+Sesión con usuario y contraseña: `POST /api/auth/login` `{username,password}` → `{token, role, name}` (el servidor decide si es
+PLATFORM_ADMIN o HOST; token `adm_…`/`sess_…` válido 30 días), `POST /api/auth/logout`, `GET /api/auth/me`,
+`POST /api/auth/password` (animador cambia su contraseña). Contraseñas con scrypt; el usuario `admin` se define con
+`PLATFORM_ADMIN_USER`/`PLATFORM_ADMIN_PASSWORD` en el servidor. Los tokens de API (`host_…`, `PLATFORM_ADMIN_TOKEN`) siguen valiendo para integraciones.
+
+Animador (`Authorization: Bearer host_…` o token de sesión): `GET /api/host/me`, `GET|POST /api/host/events`, `GET|PATCH /api/host/events/:id`,
 `PUT /api/host/events/:id/game`, `POST /api/host/events/:id/publish|start|finish`, `GET /api/host/events/:id/stats|players|orders`.
 
 Administrador (`Bearer PLATFORM_ADMIN_TOKEN`): `GET /api/admin/stats`, `GET|POST /api/admin/hosts`, `PATCH /api/admin/hosts/:id`,
@@ -71,11 +76,14 @@ pública y quedan pendientes de validar en sus ambientes de integración.
 
 ## 7. Cómo probar
 
-Local sin mediasoup: `npm run build && cd server && PLATFORM_ADMIN_TOKEN=admin-dev node dev-platform.mjs` → `http://127.0.0.1:3011/`.
-Completo: `docker compose --profile concert up -d --build` con `PLATFORM_ADMIN_TOKEN`, `PUBLIC_URL` y `LIVE_HOST_TOKEN` en `.env`.
+Local sin mediasoup: `npm run build && cd server && PLATFORM_ADMIN_TOKEN=admin-dev node dev-platform.mjs` → `http://127.0.0.1:3011/`
+(usuario `admin`, contraseña `admin-dev`).
+Completo: `docker compose --profile concert up -d --build` con `PLATFORM_ADMIN_TOKEN`, `PLATFORM_ADMIN_PASSWORD`, `PUBLIC_URL` y
+`LIVE_HOST_TOKEN` en `.env` (`deploy/setup-server.sh` los genera).
 
-**ADMIN + HOST**: `#/admin` → token admin → Animadores → crear → copiar el token (se muestra una vez) → marcar permisos
-(p. ej. "Tarjetas pagadas") → Guardar. El animador entra en `#/events` con su token.
+**ADMIN + HOST**: portada → **Iniciar** (`#/login`) → usuario `admin` + contraseña → Animadores → crear (nombre, usuario y
+contraseña) → marcar permisos (p. ej. "Tarjetas pagadas") → Guardar. El animador pulsa **Iniciar** con su usuario y contraseña
+y entra en su panel (`#/events`): partida Spotify, eventos, 🎥 Transmitir (Bingo Hit Live) y 🎤 Karaoke (panel DJ) con la misma sesión.
 
 **LOCAL + FREE**: animador → Nuevo evento → Presencial + Gratis → (opcional) usar la partida de Spotify actual → Crear → Publicar.
 En `#/host` (partida Spotify) el panel "Bingo Hit Live" permite vincular la partida al evento; los jugadores del recinto

@@ -190,7 +190,7 @@ export const hostApi = {
 
 export const adminApi = {
   stats: () => api<Record<string, unknown> & { perEvent: (EventStats & { id: string; name: string; hostId: string; status: string; eventMode: string; cardDistribution: string })[]; perHost: { id: string; name: string; status: string; events: number; grossSales: number; cardsTotal: number }[] }>('GET', '/api/admin/stats', { token: tokens.admin() }),
-  hosts: () => api<{ id: string; name: string; email: string; status: string; permissions: Record<string, boolean | number> }[]>('GET', '/api/admin/hosts', { token: tokens.admin() }),
+  hosts: () => api<{ id: string; name: string; email: string; username?: string; status: string; permissions: Record<string, boolean | number> }[]>('GET', '/api/admin/hosts', { token: tokens.admin() }),
   createHost: (body: unknown) => api<{ user: { id: string; name: string }; token: string }>('POST', '/api/admin/hosts', { token: tokens.admin(), body }),
   updateHost: (id: string, body: unknown) => api<unknown>('PATCH', `/api/admin/hosts/${id}`, { token: tokens.admin(), body }),
   rotateToken: (id: string) => api<{ token: string }>('POST', `/api/admin/hosts/${id}/token`, { token: tokens.admin() }),

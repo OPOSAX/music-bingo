@@ -6,6 +6,7 @@ import { navigate } from '../../router.js';
 import { loadGame, type GameState } from '../../store.js';
 import { detectConcertServer } from '../../concert/session.js';
 import { loadToken, saveToken } from '../../concert/store.js';
+import { renderKaraokeHostPanel } from '../../concert/views/karaoke-host-panel.js';
 import { LIVE_EVENTS, liveRoomId, type BingoClaimed, type LinkState, type LiveMetrics } from '../protocol.js';
 import { LiveHostPublisher, type DeviceLists } from '../publisher.js';
 import { liveSession, releaseLiveSessions, type LiveSession } from '../session.js';
@@ -43,6 +44,7 @@ export async function renderLiveHost(root: HTMLElement, params: URLSearchParams)
   }
   const session = liveSession({ url: serverUrl, event: eventId }, { token, name: 'Animador' });
   renderPanel(root, session, game, eventId);
+  root.appendChild(renderKaraokeHostPanel({ btalkUrl: serverUrl, roomId: liveRoomId(eventId), token }));
 }
 
 function renderSetup(root: HTMLElement, params: URLSearchParams, serverUrl: string, token: string): HTMLElement {

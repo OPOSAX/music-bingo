@@ -91,13 +91,23 @@ export async function loadMediasoupDevice(btalkUrl: string): Promise<MediasoupDe
 
 /** Comprueba si el origen actual es un servidor Concert (sirve /health con concert:true). */
 export async function detectConcertServer(): Promise<string | null> {
+  return (await detectServer()).concert;
+}
+
+/** Servidor completo (Socket.IO + mediasoup) en este origen; el servidor de desarrollo sin Live devuelve null. */
+export async function detectLiveServer(): Promise<string | null> {
+  return (await detectServer()).live;
+}
+
+async function detectServer(): Promise<{ concert: string | null; live: string | null }> {
   try {
     const res = await fetch('health', { cache: 'no-store' });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { concert?: boolean };
-    return data.concert ? location.origin + location.pathname.replace(/\/[^/]*$/, '').replace(/\/$/, '') : null;
+    if (!res.ok) return { concert: null, live: null };
+    const data = (await res.json()) as { concert?: boolean; live?: unknown; dev?: boolean };
+    const url = data.concert ? location.origin + location.pathname.replace(/\/[^/]*$/, '').replace(/\/$/, '') : null;
+    return { concert: url, live: url && data.live !== false && !data.dev ? url : null };
   } catch {
-    return null;
+    return { concert: null, live: null };
   }
 }
 

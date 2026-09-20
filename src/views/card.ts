@@ -10,6 +10,8 @@ import { autoMarkedCells, subscribeState, type LiveLink, type SyncState } from '
 import { LIVE_EVENTS } from '../live/protocol.js';
 import { liveSession, releaseLiveSessions, type LiveSession } from '../live/session.js';
 import { createLiveHostVideo, type LiveHostVideo } from '../live/views/live-video.js';
+import { liveRoomId } from '../live/protocol.js';
+import { createKaraokePanel } from '../concert/views/sing.js';
 import { renderCardGrid } from './card-grid.js';
 import { createLyricsPanel, lyricsToggle, type LyricsPanel } from './lyrics-panel.js';
 
@@ -51,6 +53,7 @@ export function renderCardView(root: HTMLElement, shared: SharedCard, playerName
   if (shared.l) {
     opts.liveUrl = shared.l;
     opts.liveEvent = shared.g;
+    opts.karaoke = { url: shared.l, room: liveRoomId(shared.g) };
   }
   renderPlayerCards(root, [shared], playerName, opts);
 }
@@ -60,6 +63,8 @@ export interface PlayerCardsOptions {
   liveUrl?: string | undefined;
   /** Identificador del evento (sala `bingo-<evento>`); por defecto el código de partida. */
   liveEvent?: string | undefined;
+  /** Karaoke del evento: servidor y sala donde el jugador puede apuntarse para cantar. */
+  karaoke?: { url: string; room: string } | undefined;
 }
 
 interface CardState {
@@ -131,6 +136,7 @@ export function renderPlayerCards(root: HTMLElement, cards: SharedCard[], player
     root.appendChild(liveVideo.el);
   }
   root.appendChild(live);
+  if (options.karaoke) root.appendChild(createKaraokePanel({ btalkUrl: options.karaoke.url, roomId: options.karaoke.room }, { name: playerName, compact: true }));
   root.appendChild(lyricsPanel.el);
   if (states.length > 1) root.appendChild(h('div', { class: 'card-tabs-wrap' }, tabsTitle, tabs));
   for (const s of states) root.appendChild(s.el);

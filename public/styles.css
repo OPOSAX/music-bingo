@@ -443,3 +443,12 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
 /* Inicio de sesión */
 .login-panel { max-width: 440px; margin: 24px auto; }
 .login-panel .fields { grid-template-columns: 1fr; }
+
+/* Karaoke dentro de la tarjeta y lista "quieren cantar" del anfitrión */
+.sing-compact { padding: 12px; }
+.sing-compact .sing-state { padding: 4px 0; }
+.sing-compact .sing-icon { font-size: 1.6rem; }
+.sing-compact form .btn { width: 100%; }
+.karaoke-host .badge { margin-left: 6px; }
+.karaoke-row.st-live { background: rgba(229, 72, 77, 0.12); }
+.karaoke-row.st-ready { background: rgba(29, 185, 84, 0.08); }

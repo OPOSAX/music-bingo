@@ -1,5 +1,6 @@
 /** Panel del DJ del karaoke. Lista READY, slots MIC A/B, motor de audio y panel técnico. */
 
+import { navigate } from '../../router.js';
 import { button, clear, errorMessage, formatDuration, h, toast } from '../../dom.js';
 import { encodeText, toSvgElement } from '../../qr.js';
 import { currentTrackIndex, loadGame } from '../../store.js';
@@ -46,7 +47,7 @@ export async function releaseDj(): Promise<void> {
 
 export async function renderDj(root: HTMLElement, params: URLSearchParams): Promise<void> {
   clear(root);
-  root.appendChild(h('section', { class: 'page-header' }, h('h1', null, '🎤 Karaoke'), h('p', { class: 'lead' }, 'Micrófonos del público, controlados desde aquí.')));
+  root.appendChild(h('section', { class: 'page-header' }, h('div', null, h('h1', null, '🎤 Karaoke · panel del DJ'), h('p', { class: 'lead' }, 'Micrófonos del público, controlados desde aquí.')), h('div', { class: 'actions' }, button('Panel de la partida', () => navigate('/host'), 'btn'), button('Mis eventos', () => navigate('/events'), 'btn btn-link'))));
   if (!session) {
     root.appendChild(renderConfigForm(root, params));
     return;

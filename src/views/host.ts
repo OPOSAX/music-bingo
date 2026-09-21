@@ -337,19 +337,28 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   );
 
   /** Publica la lista de canciones (una vez) para que el QR único pueda construir las tarjetas. */
+  /** Configuración de la partida para el servidor Live: valida bingos y permite entrar por /play (el servidor la guarda para quien llega tarde). */
+  function gameCfg(): GameConfigMessage {
+    return { k: 'cfg', seed: game.config.seed, gridSize: game.config.gridSize, freeCenter: game.config.freeCenter, cardCount: game.config.cardCount, poolSize: game.tracks.length, topic: game.syncTopic as string, title: game.playlistName };
+  }
+  async function publishCfg(): Promise<boolean> {
+    const live = liveLinkOf(game);
+    if (!live) return true;
+    const ok = await publishMessage('', gameCfg(), live, loadToken());
+    if (!ok) toast('El servidor Live no aceptó la partida (¿sesión de animador caducada?). Vuelve a iniciar sesión en "Mis eventos".', 'error');
+    return ok;
+  }
   async function publishPool(force = false): Promise<void> {
-    if (game.poolPublishedAt && !force) return;
+    // Si cambió el servidor Live (p. ej. se activó después de repartir por ntfy) hay que volver a publicar allí.
+    if (game.poolPublishedAt && !force && (game.poolPublishedLive ?? '') === (game.liveServer ?? '')) return;
     const chunks = poolChunks(game.config.seed, game.tracks.map((t) => [t.name, t.artists] as [string, string]));
     let ok = true;
     const live = liveLinkOf(game);
-    if (live) {
-      // Configuración de la partida para el servidor Live: valida bingos y permite entrar por /play.
-      const cfg: GameConfigMessage = { k: 'cfg', seed: game.config.seed, gridSize: game.config.gridSize, freeCenter: game.config.freeCenter, cardCount: game.config.cardCount, poolSize: game.tracks.length, topic: game.syncTopic as string, title: game.playlistName };
-      ok = (await publishMessage('', cfg, live, loadToken())) && ok;
-    }
+    if (live) ok = (await publishCfg()) && ok;
     for (const chunk of chunks) ok = (await publishMessage(game.syncTopic as string, chunk, live, loadToken())) && ok;
     if (ok) {
       game.poolPublishedAt = Date.now();
+      game.poolPublishedLive = game.liveServer ?? '';
       saveGame(game);
     } else {
       toast('No se pudo enviar la lista de canciones al canal; el QR único no funcionará hasta que haya conexión.', 'error');
@@ -414,6 +423,9 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     void session
       .connect()
       .then(() => {
+        // Al (re)conectar se reenvía la configuración: si el servidor cerró la sala por inactividad, la recupera.
+        void publishCfg();
+        session.onJoin((_ack, reconnect) => { if (reconnect) void publishCfg(); });
         session.on(LIVE_EVENTS.bingoClaimed, (c: BingoClaimed) => {
           bingoClaims.hidden = false;
           (bingoClaims.parentElement as HTMLElement).hidden = false;

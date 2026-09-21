@@ -112,6 +112,8 @@ async function legacyPlay(root: HTMLElement, event: string, url: string): Promis
     },
   );
   setTimeout(() => {
-    if (status.isConnected) status.textContent = 'El anfitrión todavía no ha abierto la partida en este servidor. Espera un momento…';
+    if (!status.isConnected) return;
+    status.textContent = 'Todavía no llega la partida del anfitrión. Sigo esperando; si tarda, pídele que tenga abierta la pantalla de la partida y pulsa Reintentar.';
+    status.after(h('div', { class: 'actions center' }, button('Reintentar', () => { sub.close(); void legacyPlay(root, event, url); }, 'btn'), button('Inicio', () => navigate('/'), 'btn btn-link')));
   }, 8000);
 }

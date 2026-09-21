@@ -462,3 +462,10 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
 .karaoke-hot .btn-lg { width: 100%; }
 .karaoke-hint { margin: 0; }
 .karaoke-state { white-space: nowrap; }
+
+/* QR de acceso dentro del panel de la partida */
+.host-qr-row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.host-qr { width: min(60vw, 220px); flex: 0 0 auto; }
+.host-qr svg { width: 100%; height: auto; display: block; border-radius: 10px; }
+.host-qr-text { flex: 1 1 220px; }
+.host-qr-text h2 { margin-top: 0; }

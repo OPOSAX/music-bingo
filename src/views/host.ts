@@ -2,7 +2,9 @@
 
 import type { Card, StartMode, Track } from '../bingo.js';
 import { cardLabel, evaluateCard, generateCard } from '../bingo.js';
-import { button, clear, errorMessage, formatDuration, h, toast } from '../dom.js';
+import { button, clear, copyText, errorMessage, formatDuration, h, toast } from '../dom.js';
+import { encodeText, toSvgElement } from '../qr.js';
+import { joinUrl } from './deal.js';
 import { SnippetPlayer, createBrowserPlayer, snippetStart } from '../player.js';
 import { navigate } from '../router.js';
 import * as api from '../spotify-api.js';
@@ -59,9 +61,27 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       'header',
       { class: 'page-header' },
       h('div', null, h('h1', null, `Partida ${game.config.seed}`), h('p', { class: 'muted' }, `${game.playlistName} · ${game.tracks.length} canciones · ${cards.length} tarjetas · ${game.config.gridSize}×${game.config.gridSize}`)),
-      h('div', { class: 'actions' }, button('📱 QR de acceso', () => navigate('/deal'), 'btn btn-primary'), game.liveServer ? button('🎥 Transmitir', () => navigate(`/live?event=${encodeURIComponent(game.eventId ?? game.config.seed)}`), 'btn') : null, game.liveServer ? button('🎤 Panel del DJ', () => navigate(djPanelUrl(karaokeEndpoint(game))), 'btn') : null, button('Tarjetas', () => navigate('/cards'), 'btn'), button('Mis eventos', () => navigate('/events'), 'btn btn-link')),
+      h('div', { class: 'actions' }, game.liveServer ? button('🎥 Transmitir', () => navigate(`/live?event=${encodeURIComponent(game.eventId ?? game.config.seed)}`), 'btn') : null, game.liveServer ? button('🎤 Panel del DJ', () => navigate(djPanelUrl(karaokeEndpoint(game))), 'btn') : null, button('Tarjetas', () => navigate('/cards'), 'btn'), button('Mis eventos', () => navigate('/events'), 'btn btn-link')),
     ),
   );
+
+  /* ---- QR de acceso: siempre a la vista; "en grande" abre otra pestaña para no cortar la música ---- */
+  const qrBox = h('div', { class: 'host-qr' }, h('p', { class: 'muted small' }, 'Generando QR…'));
+  const qrLink = h('a', { class: 'deal-link small', href: '#', target: '_blank', rel: 'noopener' }, 'Enlace de la partida');
+  let joinLink = '';
+  root.appendChild(
+    h(
+      'section',
+      { class: 'panel host-qr-panel' },
+      h('div', { class: 'host-qr-row' }, qrBox, h('div', { class: 'host-qr-text' }, h('h2', null, '📱 QR de acceso'), h('p', { class: 'muted small' }, 'Todos escanean este QR: escriben su nombre, reciben su tarjeta y ahí tienen el botón "Quiero cantar".'), h('div', { class: 'actions' }, button('Copiar enlace', () => void copyText(joinLink).then((ok) => toast(ok ? 'Enlace copiado' : 'No se pudo copiar', ok ? 'success' : 'error')), 'btn btn-sm'), button('Ver en grande', () => { window.open(`${location.pathname}#/deal`, '_blank', 'noopener'); }, 'btn btn-sm'), qrLink))),
+    ),
+  );
+  void joinUrl(game).then((url) => {
+    joinLink = url;
+    qrLink.href = url;
+    clear(qrBox);
+    qrBox.appendChild(toSvgElement(encodeText(url, { ecc: 'M' }), { border: 2, className: 'qr' }));
+  }).catch((err) => { qrBox.textContent = errorMessage(err); });
 
   /* ---- Controles del juego (creados antes que el reproductor: setDevice los refresca al restaurar el navegador como dispositivo) ---- */
   const counter = h('span', { class: 'counter' });
@@ -170,7 +190,8 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     game.config.startMode = startModeSelect.value as StartMode;
     saveGame(game);
   });
-  if (game.config.continuous === undefined && isMobileBrowser()) {
+  // Por defecto la canción no se corta: sigue sonando hasta que el anfitrión pulsa "Siguiente" o "Parar".
+  if (game.config.continuous === undefined) {
     game.config.continuous = true;
     saveGame(game);
   }
@@ -223,7 +244,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       'div',
       { class: 'fields' },
       h('label', { class: 'field' }, h('span', null, 'Cada canción empieza'), startModeSelect),
-      h('label', { class: 'field field-check' }, continuousCheck, h('span', null, 'Reproducción continua: la canción se repite en bucle hasta que pulses "Siguiente" (evita que el móvil suspenda Spotify)')),
+      h('label', { class: 'field field-check' }, continuousCheck, h('span', null, 'Reproducción continua: la canción sigue sonando (en bucle) hasta que pulses "Siguiente" o "Parar". Desmarcado: se corta al acabar el fragmento.')),
     ),
   );
   if (mobile) {
@@ -416,12 +437,13 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   function refreshControls(): void {
     const finished = game.position >= game.order.length;
     const ready = snippetPlayer !== null;
-    nextBtn.disabled = !ready || finished || playing;
-    replayBtn.disabled = !ready || game.position === 0 || playing;
-    fromStartBtn.disabled = !ready || game.position === 0 || playing;
+    nextBtn.disabled = finished;
+    replayBtn.disabled = game.position === 0;
+    fromStartBtn.disabled = game.position === 0;
     stopBtn.disabled = !playing;
     revealBtn.disabled = game.position === 0 || game.revealed;
-    undoBtn.disabled = game.position === 0 || playing;
+    undoBtn.disabled = game.position === 0;
+    nextBtn.title = ready ? '' : 'Elige antes el dispositivo de Spotify';
     nextBtn.textContent = finished ? 'No quedan canciones' : game.position === 0 ? 'Empezar ▶' : 'Siguiente canción ▶';
   }
 
@@ -556,7 +578,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       saveGame(game);
       lyricsPanel.setClock(game.lastPlay);
       publish();
-      await snippetPlayer.play(track, start, game.config.snippetSeconds, {
+      await snippetPlayer.play(track, start, continuous ? Math.max(1, (track.durationMs - start) / 1000) : game.config.snippetSeconds, {
         keepPlaying: continuous,
         onTick: (elapsed, total) => {
           progressBar.style.width = `${(elapsed / total) * 100}%`;
@@ -585,6 +607,11 @@ export async function renderHost(root: HTMLElement): Promise<void> {
 
   async function next(): Promise<void> {
     if (game.position >= game.order.length) return;
+    if (!snippetPlayer) {
+      toast('Elige antes dónde suena la música (Reproductor).', 'error');
+      playerPanel.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
     game.position++;
     game.revealed = false;
     persist();

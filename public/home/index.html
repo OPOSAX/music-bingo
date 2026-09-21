@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#2d0407" />
+    <title>Bingo Hit · Music Bingo &amp; Karaoke</title>
+    <meta name="description" content="Bingo Hit: bingo musical, karaoke y participación en vivo desde el celular. Ideal para bares, pubs, restaurantes, hoteles, eventos y activaciones de marca." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800;900&family=Great+Vibes&display=swap" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎤</text></svg>" />
+    <style>
+      :root { --gold: #f2c14e; --gold-2: #c8961d; --red: #b3121a; --bg: #121212; --panel: #1e1e1e; --text: #f3f3f3; --muted: #b9b0b0; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Montserrat', -apple-system, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+      a { color: inherit; }
+      .hero { position: relative; padding: 32px 18px 28px; overflow: hidden; text-align: center; color: #fff; min-height: 100svh; display: flex; align-items: center; }
+      .hero-bg { position: absolute; inset: 0; background: url('portada.jpg') center 0% / cover no-repeat; z-index: 0; }
+      .hero-bg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(60, 5, 8, 0.5) 0%, rgba(45, 4, 7, 0.9) 30%, rgba(24, 12, 12, 0.98) 55%, rgba(18, 18, 18, 1) 100%); }
+      .hero-body { position: relative; z-index: 1; max-width: 680px; margin: 0 auto; width: 100%; }
+      .kicker { font-size: 0.7rem; letter-spacing: 0.35em; text-transform: uppercase; color: var(--gold); margin: 0 0 14px; }
+      .title { font-size: clamp(3.2rem, 15vw, 6rem); font-weight: 900; line-height: 0.95; margin: 0; letter-spacing: -0.02em; text-shadow: 0 6px 30px rgba(0, 0, 0, 0.6); }
+      .gold { background: linear-gradient(180deg, #ffe89a 0%, var(--gold) 45%, var(--gold-2) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      .sub { font-size: 0.85rem; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 600; margin: 10px 0 4px; }
+      .tagline { font-family: 'Great Vibes', 'Brush Script MT', 'Segoe Script', 'Snell Roundhand', cursive; font-style: italic; font-size: clamp(1.8rem, 8vw, 2.8rem); color: var(--gold); margin: 6px 0 14px; line-height: 1.1; }
+      .desc { font-size: 1rem; line-height: 1.55; color: #f1e6e6; margin: 0 0 18px; text-align: left; }
+      .features { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 0 0 22px; }
+      .feature { border: 1px solid var(--gold-2); border-radius: 14px; padding: 14px 10px; background: rgba(0, 0, 0, 0.45); display: flex; flex-direction: column; align-items: center; gap: 6px; font-weight: 700; font-size: 0.9rem; line-height: 1.2; }
+      .feature-icon { font-size: 1.6rem; }
+      .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 0 0 22px; }
+      .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 26px; border-radius: 999px; font-weight: 800; font-size: 1.05rem; text-decoration: none; border: 1.5px solid transparent; cursor: pointer; min-width: 180px; }
+      .btn-gold { background: linear-gradient(180deg, #ffe89a, var(--gold) 50%, var(--gold-2)); color: #2a1a00; }
+      .btn-gold:hover { filter: brightness(1.05); }
+      .btn-outline { background: transparent; color: var(--gold); border-color: var(--gold); font-weight: 700; }
+      .claim { font-size: clamp(1.5rem, 7vw, 2.4rem); font-weight: 900; margin: 0; letter-spacing: -0.01em; }
+      .claim::before, .claim::after { content: ''; display: block; height: 1px; background: linear-gradient(90deg, transparent, var(--gold-2), transparent); margin: 12px auto; width: 70%; }
+      .claim-sub { font-size: 0.7rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--gold); margin: 0; }
+      section.how { max-width: 900px; margin: 0 auto; padding: 36px 18px; }
+      section.how h2 { text-align: center; font-size: 1.6rem; margin: 0 0 6px; }
+      section.how .lead { text-align: center; color: var(--muted); margin: 0 0 24px; }
+      .steps { display: grid; grid-template-columns: 1fr; gap: 14px; }
+      .step { background: var(--panel); border-radius: 16px; padding: 18px; border: 1px solid #2a2a2a; }
+      .step .n { display: inline-flex; width: 34px; height: 34px; border-radius: 50%; align-items: center; justify-content: center; background: var(--gold); color: #2a1a00; font-weight: 900; margin-bottom: 8px; }
+      .step h3 { margin: 0 0 6px; font-size: 1.05rem; }
+      .step p { margin: 0; color: var(--muted); line-height: 1.5; font-size: 0.95rem; }
+      .roles { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 24px; }
+      .role { border: 1px solid var(--gold-2); border-radius: 16px; padding: 18px; background: rgba(0, 0, 0, 0.35); }
+      .role h3 { margin: 0 0 8px; color: var(--gold); }
+      .role ul { margin: 0; padding-left: 18px; color: #e8dede; line-height: 1.6; font-size: 0.95rem; }
+      footer { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 24px 18px 36px; }
+      footer a { color: var(--gold); text-decoration: none; }
+      @media (min-width: 720px) {
+        .hero { padding: 48px 24px 40px; }
+        .features { grid-template-columns: repeat(4, 1fr); }
+        .desc { text-align: center; }
+        .steps { grid-template-columns: repeat(3, 1fr); }
+        .roles { grid-template-columns: repeat(2, 1fr); }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="hero">
+      <div class="hero-bg"></div>
+      <div class="hero-body">
+        <p class="kicker">Buena música · Mejores momentos</p>
+        <h1 class="title">BINGO <span class="gold">HIT</span></h1>
+        <p class="sub">Music Bingo &amp; Karaoke</p>
+        <p class="tagline">La música se transforma en juego</p>
+        <p class="desc">
+          <strong>Bingo HIT</strong> es una experiencia de entretenimiento musical interactivo que combina <strong>bingo musical</strong>, <strong>karaoke</strong> y
+          <strong>participación en vivo</strong> desde el celular. Ideal para bares, pubs, restaurantes, hoteles, eventos y activaciones de marca.
+        </p>
+        <div class="features">
+          <div class="feature"><span class="feature-icon">📱</span><span>Participación desde el celular</span></div>
+          <div class="feature"><span class="feature-icon">🎵</span><span>Bingo musical en vivo</span></div>
+          <div class="feature"><span class="feature-icon">🎤</span><span>Modo karaoke integrado</span></div>
+          <div class="feature"><span class="feature-icon">🏆</span><span>Premios, rondas y desafíos</span></div>
+        </div>
+        <div class="actions">
+          <a class="btn btn-gold" data-sys="#/login" href="/sistema/#/login">Ingresar</a>
+          <a class="btn btn-outline" data-sys="#/jugar" href="/sistema/#/jugar">📱 Tengo un enlace o QR</a>
+        </div>
+        <p class="claim">Escucha. Juega. Canta. Gana.</p>
+        <p class="claim-sub">Más que música, es conexión</p>
+      </div>
+    </header>
+
+    <section class="how">
+      <h2>¿Cómo funciona?</h2>
+      <p class="lead">Un solo código QR para todo el público.</p>
+      <div class="steps">
+        <div class="step"><span class="n">1</span><h3>Escanea el QR</h3><p>Cada persona abre su tarjeta de bingo en su propio celular. Sin descargar nada y sin cuenta de Spotify.</p></div>
+        <div class="step"><span class="n">2</span><h3>Escucha y juega</h3><p>Suenan fragmentos de canciones; la tarjeta se marca sola y, cuando completes una línea o el cartón, cantas ¡BINGO!</p></div>
+        <div class="step"><span class="n">3</span><h3>Canta desde tu celular</h3><p>Pulsa "Quiero cantar" en tu tarjeta: el animador te da paso y tu voz sale por el equipo del local.</p></div>
+      </div>
+      <div class="roles">
+        <div class="role">
+          <h3>Para el público</h3>
+          <ul>
+            <li>Tarjetas gratis o pagadas según el evento.</li>
+            <li>Vídeo y audio del animador en directo, también desde casa.</li>
+            <li>Reacciones, karaoke y premios en tiempo real.</li>
+          </ul>
+        </div>
+        <div class="role">
+          <h3>Para bares, hoteles y eventos</h3>
+          <ul>
+            <li>Eventos presenciales, online o híbridos.</li>
+            <li>Panel del animador con Spotify, karaoke y transmisión en vivo.</li>
+            <li>Ventas de tarjetas y estadísticas centralizadas.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      Bingo Hit · Music Bingo &amp; Karaoke · <a data-sys="#/login" href="/sistema/#/login">Ingresar al sistema</a>
+    </footer>
+    <script>
+      // Servida en la raíz del dominio (nginx → /home/), el sistema vive en /sistema/. Abierta directamente
+      // desde el servidor (http://host:3010/home/), el sistema está en la raíz.
+      (function () {
+        var base = /^\/home\/?/.test(location.pathname) ? location.pathname.replace(/home\/?$/, '') : '/sistema/';
+        document.querySelectorAll('a[data-sys]').forEach(function (a) { a.setAttribute('href', base + a.getAttribute('data-sys')); });
+      })();
+    </script>
+  </body>
+</html>

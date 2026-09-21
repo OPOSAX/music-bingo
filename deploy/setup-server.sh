@@ -142,7 +142,7 @@ else
 fi
 docker image prune -f >/dev/null
 
-# 8. Si hay un nginx o Apache, añadir el sitio www.bingohit.cl/sistema -> servidor Concert
+# 8. Si hay un nginx o Apache, añadir el sitio: / -> página de presentación, /sistema/ -> sistema (servidor Concert)
 APP_PORT="$(env_value CONCERT_PORT)"
 APP_PORT="${APP_PORT:-3010}"
 if [ -d /etc/nginx/sites-available ]; then
@@ -186,9 +186,11 @@ server {
         proxy_read_timeout 3600s;
     }
 
-    # Raíz del dominio: de momento va al sistema. Sustituye este bloque por tu web.
+    # Raíz del dominio: página de presentación (public/home) con el botón "Ingresar" al sistema.
     location / {
-        return 302 $BASE_PATH/;
+        proxy_pass http://127.0.0.1:$APP_PORT/home/;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
 NGINX
@@ -229,8 +231,9 @@ configure_apache() {
     ProxyPass        $BASE_PATH/ http://127.0.0.1:$APP_PORT/
     ProxyPassReverse $BASE_PATH/ http://127.0.0.1:$APP_PORT/
 
-    # Raíz del dominio: de momento va al sistema. Sustituye esta línea por tu web.
-    RedirectMatch 302 ^/$ $BASE_PATH/
+    # Raíz del dominio: página de presentación (public/home) con el botón "Ingresar" al sistema.
+    ProxyPass        / http://127.0.0.1:$APP_PORT/home/
+    ProxyPassReverse / http://127.0.0.1:$APP_PORT/home/
 </VirtualHost>
 APACHE
     a2ensite -q bingohit.cl.conf >/dev/null
@@ -256,7 +259,8 @@ case "$web_server" in
   docker|other)
     printf '\n\033[1;33mAVISO:\033[0m los puertos 80/443 los ocupa un servidor que no sé configurar automáticamente:\n%s\n' "$listener"
     echo "El sistema está en 127.0.0.1:$APP_PORT. Añade en ese servidor el sitio $DOMAIN con la ruta"
-    echo "$BASE_PATH/ -> http://127.0.0.1:$APP_PORT/ con soporte de websocket (ejemplo en deploy/nginx-site.example.conf)."
+    echo "$BASE_PATH/ -> http://127.0.0.1:$APP_PORT/ con soporte de websocket y la raíz / -> http://127.0.0.1:$APP_PORT/home/"
+    echo "(página de presentación). Ejemplo en deploy/nginx-site.example.conf."
     ;;
 esac
 

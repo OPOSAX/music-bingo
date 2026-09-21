@@ -74,6 +74,13 @@ tiene acceso; `live:start` exige `canStartLive`; el rol `dj` lo obtiene solo el 
 la configuración del servidor y el panel las muestra enmascaradas. Los dos proveedores reales están escritos contra la API
 pública y quedan pendientes de validar en sus ambientes de integración.
 
+## 6b. Portada del dominio y sistema
+
+`public/home/index.html` es la página de presentación que se sirve en la raíz del dominio (`www.bingohit.cl/`): el
+servidor Concert la expone en `/home/` y el proxy (nginx/Apache/Caddy) envía `/` → `http://127.0.0.1:3010/home/` y
+`/sistema/` → `http://127.0.0.1:3010/`. Sus botones **Ingresar** y **Tengo un enlace o QR** llevan a `/sistema/#/login` y
+`/sistema/#/jugar`. La app en `/sistema/#/` conserva su propia portada para despliegues sin proxy (GitHub Pages).
+
 ## 7. Cómo probar
 
 Local sin mediasoup: `npm run build && cd server && PLATFORM_ADMIN_TOKEN=admin-dev node dev-platform.mjs` → `http://127.0.0.1:3011/`

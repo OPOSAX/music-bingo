@@ -67,6 +67,7 @@ jobs:
           done
           docker logs concert
           curl -fsS http://127.0.0.1:3010/ | grep -q "Bingo Hit"
+          curl -fsS http://127.0.0.1:3010/home/ | grep -q "Ingresar"
           curl -fsS http://127.0.0.1:3010/js/concert/views/dj.js >/dev/null
           curl -fsS http://127.0.0.1:3010/sfu/MediasoupClient.js | head -c 200 >/dev/null
           curl -fsS http://127.0.0.1:3010/socket.io/socket.io.esm.min.js | head -c 100 >/dev/null

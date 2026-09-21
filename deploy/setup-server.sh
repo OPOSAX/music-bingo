@@ -79,6 +79,11 @@ set_env() { # clave valor
 }
 env_value() { grep -s "^$1=" .env | cut -d= -f2- || true; }
 gen_secret() { tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32; }
+# El karaoke forma parte de Bingo Hit: si un .env antiguo lo dejó apagado, se enciende.
+if grep -q '^CONCERT_MODE=false' .env; then
+  log "Activando el karaoke (CONCERT_MODE=true)"
+  sed -i 's/^CONCERT_MODE=false/CONCERT_MODE=true/' .env
+fi
 for key in PLATFORM_ADMIN_TOKEN PLATFORM_ADMIN_PASSWORD LIVE_HOST_TOKEN CONCERT_DJ_TOKEN MOCK_PAYMENT_SECRET; do
   v="$(env_value "$key")"
   case "$v" in ""|cambia-*) set_env "$key" "$(gen_secret)" ;; esac

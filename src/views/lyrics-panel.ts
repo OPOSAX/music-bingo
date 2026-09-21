@@ -75,7 +75,7 @@ export function createLyricsPanel(options: { compact?: boolean } = {}): LyricsPa
       body.appendChild(h('p', { class: 'muted' }, lastLyricsError ? `No se pudo consultar la letra: ${lastLyricsError}.` : `No hay letra para "${current.name}" en LRCLIB ni en lyrics.ovh.`));
       return;
     }
-    status.textContent = lyrics.synced.length ? `Sincronizada · ${lyrics.source}` : lyrics.source;
+    status.textContent = '';
     if (lyrics.synced.length) {
       for (const line of lyrics.synced) {
         const lineEl = h('p', { class: 'lyric-line' }, line.text || '♪');

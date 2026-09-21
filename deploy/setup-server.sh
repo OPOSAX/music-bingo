@@ -138,8 +138,9 @@ if [ "$PROFILE" = "https" ] && [ "$web_server" != "none" ] && [ "$web_server" !=
   exit 1
 fi
 
-# 7. Arrancar
-log "Construyendo y arrancando los contenedores (la primera vez compila mediasoup: varios minutos)"
+# 7. Arrancar (APP_VERSION = commit desplegado: se ve en "Versión …" al pie de la app y en /version.txt)
+export APP_VERSION="$(git rev-parse --short HEAD 2>/dev/null || echo dev)"
+log "Construyendo y arrancando los contenedores, versión $APP_VERSION (la primera vez compila mediasoup: varios minutos)"
 if [ "$PROFILE" = "https" ]; then
   docker compose --profile https up -d --build --remove-orphans
 else
@@ -269,7 +270,7 @@ case "$web_server" in
     ;;
 esac
 
-log "Listo. El sistema estará en $APP_URL en cuanto el DNS y el certificado estén activos."
+log "Listo. Versión desplegada: $APP_VERSION (compruébala en $APP_URL/version.txt). El sistema estará en $APP_URL en cuanto el DNS y el certificado estén activos."
 echo "Registra $APP_URL como Redirect URI en https://developer.spotify.com/dashboard"
 echo
 echo "Accesos (guárdalos; también están en $APP_DIR/.env):"

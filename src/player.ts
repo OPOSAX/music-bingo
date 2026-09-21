@@ -98,6 +98,8 @@ export interface SnippetEvents {
   onEnd(): void;
   /** Si es true, al acabar el fragmento la canción sigue sonando (no se pausa). */
   keepPlaying?: boolean;
+  /** Con keepPlaying, repetir la canción en bucle (útil en móviles, que suspenden Spotify al parar). */
+  loop?: boolean;
 }
 
 /** Reproduce fragmentos de canciones en un dispositivo concreto y los detiene a tiempo. */
@@ -122,7 +124,7 @@ export class SnippetPlayer {
     }
     if (gen !== this.generation) return;
     // En modo continuo la canción queda en bucle: así Spotify nunca se detiene y el móvil no lo suspende.
-    void api.setRepeat(this.deviceId, events.keepPlaying ? 'track' : 'off').catch(() => undefined);
+    void api.setRepeat(this.deviceId, events.keepPlaying && events.loop ? 'track' : 'off').catch(() => undefined);
     const totalMs = seconds * 1000;
     const startedAt = performance.now();
     events.onTick(0, totalMs);

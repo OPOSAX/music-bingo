@@ -93,8 +93,10 @@ contraseña) → marcar permisos (p. ej. "Tarjetas pagadas") → Guardar. El ani
 y entra en su panel (`#/events`): partida Spotify, eventos y, por evento publicado, 🎥 Transmitir (Bingo Hit Live) y
 🎤 Karaoke (DJ) en la sala del evento, con la misma sesión.
 
-**Participante (un solo QR)**: el QR de acceso abre la tarjeta; debajo del vídeo del animador aparece **🎤 Quiero cantar**
-(misma sala `bingo-<evento>`). El anfitrión ve "Quieren cantar" en `#/host` y `#/live` y da paso desde el panel del DJ.
+**Participante (un solo QR)**: el QR de acceso abre la tarjeta; junto al botón de la letra aparece **🎤 Quiero cantar**
+(misma sala `bingo-<evento>`). El anfitrión ve "Quieren cantar" en `#/host` (bajo los controles de la canción) y en
+`#/live`; **Autorizar** = PREPARE en un micrófono libre + GO LIVE automático al quedar listo, con el audio por su equipo.
+Silenciar / Terminar a mano; el panel del DJ sigue para mezclador y cancelación de eco.
 Cuando la app la sirve el servidor Bingo Hit y hay sesión de animador, la partida usa ese servidor Live sin configurarlo.
 
 **LOCAL + FREE**: animador → Nuevo evento → Presencial + Gratis → (opcional) usar la partida de Spotify actual → Crear → Publicar.

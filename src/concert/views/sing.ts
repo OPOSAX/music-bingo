@@ -65,13 +65,14 @@ export interface KaraokePanelOptions {
 
 /** Sección autocontenida: botón "Quiero cantar" → lista del animador → estado del micrófono, siempre con "Apagar" y "Salir". */
 export function createKaraokePanel(endpoint: ConcertEndpoint, options: KaraokePanelOptions = {}): HTMLElement {
-  const wrap = h('section', { class: `panel sing-panel${options.compact ? ' sing-compact' : ''}` });
+  const baseClass = options.compact ? 'karaoke-inline' : 'panel sing-panel';
+  const wrap = h(options.compact ? 'div' : 'section', { class: baseClass });
   let offChange: (() => void) | null = null;
   const draw = () => {
     offChange?.();
     offChange = null;
     clear(wrap);
-    wrap.className = `panel sing-panel${options.compact ? ' sing-compact' : ''}`;
+    wrap.className = baseClass;
     if (client && clientRoom === endpoint.roomId) {
       const c = client;
       const paint = (snap: ParticipantSnapshot) => drawStatus(wrap, c, snap, options, async () => {
@@ -91,6 +92,25 @@ export function createKaraokePanel(endpoint: ConcertEndpoint, options: KaraokePa
 function drawJoinForm(endpoint: ConcertEndpoint, options: KaraokePanelOptions, onJoined: () => void): HTMLElement {
   const known = (options.name ?? '').trim() || savedName();
   const needName = options.askName || !known;
+  if (options.compact && !needName) {
+    // Dentro de la tarjeta: un solo botón, sin formulario.
+    const btn = button('🎤 Quiero cantar', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Conectando…';
+      try {
+        saveName(known);
+        await start(known, '', endpoint);
+        await client?.ready();
+        toast('¡Estás en la lista para cantar! El animador te avisará.', 'success');
+        onJoined();
+      } catch (err) {
+        toast(errorMessage(err), 'error');
+        btn.disabled = false;
+        btn.textContent = '🎤 Quiero cantar';
+      }
+    }, 'btn btn-sm btn-primary');
+    return btn;
+  }
   const name = h('input', { class: 'input', type: 'text', placeholder: 'Tu nombre', value: known, maxLength: 40, autocomplete: 'name' });
   const seat = h('input', { class: 'input', type: 'text', placeholder: 'Mesa / sector (opcional)', maxLength: 20 });
   const submit = h('button', { class: `btn btn-primary ${options.compact ? 'btn-lg' : 'btn-xl'}`, type: 'submit' }, '🎤 QUIERO CANTAR');
@@ -153,6 +173,17 @@ async function requestWakeLock(): Promise<void> {
 function drawStatus(panel: HTMLElement, c: ParticipantClient, snap: ParticipantSnapshot, options: KaraokePanelOptions, onExit: () => Promise<void>): void {
   clear(panel);
   const ui = STATE_UI[snap.state];
+  if (options.compact) {
+    const hot = snap.state === 'LIVE' || snap.state === 'PREPARED' || snap.state === 'PREPARING' || snap.state === 'MUTED' || snap.micActive;
+    panel.className = `karaoke-inline ${hot ? `karaoke-hot ${ui.cls}` : ''}`;
+    panel.appendChild(h('span', { class: 'karaoke-chip' }, `${ui.icon} ${ui.title}`));
+    if (snap.state === 'LIVE') panel.appendChild(h('p', { class: 'small karaoke-hint' }, 'Tu voz sale por el PA: canta cerca del móvil.'));
+    if (snap.error) panel.appendChild(h('p', { class: 'small alert alert-error' }, snap.error));
+    if (hot) panel.appendChild(button('⏹ APAGAR MI MICRÓFONO', () => void c.stopMyMic().then(() => toast('Micrófono apagado', 'success'), (err) => toast(errorMessage(err), 'error')), 'btn btn-danger btn-lg'));
+    else if (snap.state === 'CONNECTED' || snap.state === 'ERROR') panel.appendChild(button('🎤 Quiero cantar', () => void c.ready().catch((err) => toast(errorMessage(err), 'error')), 'btn btn-sm btn-primary'));
+    panel.appendChild(button(hot ? 'Salir' : 'Ya no quiero cantar', () => void onExit(), 'btn btn-sm btn-link'));
+    return;
+  }
   panel.className = `panel sing-panel ${ui.cls}${options.compact ? ' sing-compact' : ''}`;
   panel.appendChild(h('div', { class: 'sing-state' }, h('div', { class: 'sing-icon' }, ui.icon), h(options.compact ? 'h3' : 'h2', null, ui.title), h('p', { class: 'muted small' }, ui.hint)));
   if (snap.slotId) panel.appendChild(h('p', { class: 'badge badge-ok' }, `Micrófono ${snap.slotId.replace('MIC_', '')}`));

@@ -29,6 +29,8 @@ export interface GameState {
   claims?: Record<string, { n: string; c: string }>;
   /** Cuándo se publicó la lista de canciones en el canal (para el QR único). */
   poolPublishedAt?: number;
+  /** Servidor Live al que se envió la configuración de la partida (vacío = solo canal ntfy). */
+  poolPublishedLive?: string;
   /** Servidor Bingo Hit Live (WebRTC + WebSocket) asociado a la partida, si el anfitrión lo activó. */
   liveServer?: string | undefined;
   /** Evento de la plataforma Bingo Hit al que pertenece esta partida (sala Live `bingo-<evento>`). */

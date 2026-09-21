@@ -13,7 +13,7 @@ import { cardShareUrl } from './cards.js';
 export async function joinUrl(game: GameState): Promise<string> {
   const base = `${location.origin}${location.pathname.replace(/index\.html$/, '')}`;
   // Con Bingo Hit Live el enlace es corto: la partida se obtiene del servidor (/play?e=evento).
-  if (game.liveServer) return `${base}#/play?e=${encodeURIComponent(game.config.seed)}&l=${encodeURIComponent(game.liveServer)}`;
+  if (game.liveServer) return `${base}#/play?e=${encodeURIComponent(game.eventId ?? game.config.seed)}&l=${encodeURIComponent(game.liveServer)}`;
   const payload = await encodeJoinPayload({
     v: 1,
     g: game.config.seed,

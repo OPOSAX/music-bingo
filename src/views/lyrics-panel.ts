@@ -30,10 +30,12 @@ export function createLyricsPanel(options: { compact?: boolean } = {}): LyricsPa
   let timer: number | null = null;
   let lineEls: HTMLElement[] = [];
   let lastIndex = -2;
-  let userScrolled = false;
-  body.addEventListener('scroll', () => {
-    userScrolled = true;
-  });
+  // Seguimiento automático: la línea actual se mantiene centrada. Si la persona desplaza la letra a mano
+  // (rueda, dedo), se respeta durante unos segundos y luego se retoma el seguimiento.
+  let userScrolledAt = 0;
+  const markUserScroll = () => { userScrolledAt = Date.now(); };
+  body.addEventListener('wheel', markUserScroll, { passive: true });
+  body.addEventListener('touchmove', markUserScroll, { passive: true });
 
   function stopTimer(): void {
     if (timer !== null) window.clearInterval(timer);
@@ -58,14 +60,21 @@ export function createLyricsPanel(options: { compact?: boolean } = {}): LyricsPa
       line.classList.toggle('past', i < index);
     });
     const target = lineEls[index];
-    if (target && !userScrolled) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (target && Date.now() - userScrolledAt > 6000) centerLine(target);
+  }
+
+  /** Desplaza solo el cuadro de la letra (no la página) para dejar la línea en el centro. */
+  function centerLine(target: HTMLElement): void {
+    const top = target.offsetTop - (body.clientHeight - target.offsetHeight) / 2;
+    body.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
   }
 
   function render(): void {
     clear(body);
     lineEls = [];
+    userScrolledAt = 0;
+    body.scrollTop = 0;
     lastIndex = -2;
-    userScrolled = false;
     if (!current) {
       status.textContent = '';
       return;
@@ -77,11 +86,19 @@ export function createLyricsPanel(options: { compact?: boolean } = {}): LyricsPa
     }
     status.textContent = '';
     if (lyrics.synced.length) {
+      // Espacio arriba y abajo para que también la primera y la última línea puedan quedar centradas.
+      const spacer = () => {
+        const el = h('div', { class: 'lyric-spacer' });
+        el.style.height = `${Math.max(60, Math.round((body.clientHeight || 200) / 2) - 24)}px`;
+        return el;
+      };
+      body.appendChild(spacer());
       for (const line of lyrics.synced) {
         const lineEl = h('p', { class: 'lyric-line' }, line.text || '♪');
         lineEls.push(lineEl);
         body.appendChild(lineEl);
       }
+      body.appendChild(spacer());
       tick();
       stopTimer();
       timer = window.setInterval(tick, 250);

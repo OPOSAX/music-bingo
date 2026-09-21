@@ -219,10 +219,12 @@ en [`docs/BINGO_HIT_LIVE.md`](docs/BINGO_HIT_LIVE.md).
 ## Karaoke (modo concierto)
 
 El público canta o habla desde su móvil y el DJ decide quién suena por el PA (`#/dj`). En Bingo Hit el karaoke
-usa **la misma sala que la partida**: el jugador escanea el QR de acceso, abre su tarjeta y ahí encuentra el botón
-**🎤 Quiero cantar**; el anfitrión ve la lista "Quieren cantar" en el panel de la partida (`#/host`) y en el de
-transmisión (`#/live`), y desde "Panel del DJ" prepara micrófonos y da paso. `#/sing` sigue existiendo para el
-QR independiente del DJ (karaoke sin bingo):
+usa **la misma sala que la partida**: el jugador escanea el QR de acceso, abre su tarjeta y junto al botón de la letra
+encuentra **🎤 Quiero cantar**; el anfitrión ve la lista "Quieren cantar" bajo los controles de la canción (`#/host`)
+y en el panel de transmisión (`#/live`). Con **Autorizar** el servidor prepara el micrófono del teléfono y lo pone en
+vivo en cuanto está listo (el audio suena por el equipo del anfitrión); Silenciar y Terminar siempre a mano. El
+"Panel del DJ" (`#/dj`) queda para el control avanzado: mezclador, cancelación de eco, varios micrófonos. `#/sing`
+sigue existiendo para el QR independiente del DJ (karaoke sin bingo):
 lista READY masiva (100–5000 personas), 1–2 micrófonos activos, cancelación de eco por referencia
 del mixer y panel técnico A/B. Funciona en modo demo sin servidor; el WebRTC real lo hace el servicio
 `server/` (perfil `concert` de Docker Compose), que reutiliza el SFU mediasoup de **Biznet Talk**.

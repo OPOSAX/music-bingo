@@ -103,6 +103,9 @@ export function renderPlayerCards(root: HTMLElement, cards: SharedCard[], player
   const lyricsBtn = lyricsToggle(lyricsPanel);
   lyricsBtn.hidden = true;
 
+  // Karaoke: el mismo control vive junto al botón de la letra y sobrevive a los repintados del área "en directo".
+  const karaokeEl = options.karaoke ? createKaraokePanel({ btalkUrl: options.karaoke.url, roomId: options.karaoke.room }, { name: playerName, compact: true }) : null;
+  const tools = () => h('div', { class: 'actions center live-tools' }, lyricsBtn, karaokeEl);
   const states: CardState[] = cards.map((shared) => buildCard(shared));
   let selected = 0;
   const tabs = h('div', { class: 'card-tabs' });
@@ -136,7 +139,6 @@ export function renderPlayerCards(root: HTMLElement, cards: SharedCard[], player
     root.appendChild(liveVideo.el);
   }
   root.appendChild(live);
-  if (options.karaoke) root.appendChild(createKaraokePanel({ btalkUrl: options.karaoke.url, roomId: options.karaoke.room }, { name: playerName, compact: true }));
   root.appendChild(lyricsPanel.el);
   if (states.length > 1) root.appendChild(h('div', { class: 'card-tabs-wrap' }, tabsTitle, tabs));
   for (const s of states) root.appendChild(s.el);
@@ -225,6 +227,7 @@ export function renderPlayerCards(root: HTMLElement, cards: SharedCard[], player
     if (!topic && !liveLink) return;
     if (!syncState) {
       live.appendChild(h('p', { class: 'muted small' }, online === false ? '⚠️ Sin conexión con el anfitrión. Reintentando…' : '⏳ Conectando con el anfitrión…'));
+      if (karaokeEl) live.appendChild(tools());
       return;
     }
     const n = syncState.called.length;
@@ -234,14 +237,15 @@ export function renderPlayerCards(root: HTMLElement, cards: SharedCard[], player
     if (lyricsPanel) {
       if (syncState.cur) {
         lyricsBtn.hidden = false;
-        live.appendChild(h('div', { class: 'actions center' }, lyricsBtn));
         if (!lyricsBtn.dataset.userHidden) lyricsPanel.el.hidden = false;
         lyricsPanel.show(syncState.cur, syncState.play ?? null);
       } else {
+        lyricsBtn.hidden = true;
         lyricsPanel.el.hidden = true;
         lyricsPanel.show(null, null);
       }
     }
+    if (syncState.cur || karaokeEl) live.appendChild(tools());
     clear(feed);
     const log = syncState.log ?? [];
     if (log.length) {

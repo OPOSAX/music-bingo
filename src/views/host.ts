@@ -241,6 +241,10 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   /* ---- Juego ---- */
   const gamePanel = h('section', { class: 'panel game-panel' }, h('div', { class: 'row space' }, h('h2', null, 'Canción'), counter), nowPlaying, progress, h('div', { class: 'actions' }, nextBtn, replayBtn, fromStartBtn, revealBtn, stopBtn, lyricsBtn), lyricsPanel.el);
   root.appendChild(gamePanel);
+
+  /* ---- Karaoke: quién quiere cantar (misma sala que la partida); autorizar toma su micrófono ---- */
+  if (game.liveServer) root.appendChild(renderKaraokeHostPanel(karaokeEndpoint(game)));
+  else root.appendChild(h('section', { class: 'panel' }, h('h2', null, '🎤 Quieren cantar'), h('p', { class: 'muted small' }, 'Activa Bingo Hit Live (más abajo) para que los jugadores puedan apuntarse a cantar desde su tarjeta y autorizarlos aquí.')));
   lyricsPanel.el.hidden = game.config.lyrics === false;
   lyricsBtn.hidden = game.config.lyrics === false;
 
@@ -364,10 +368,6 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       });
     }, 300);
   }
-
-  /* ---- Karaoke: quién quiere cantar (misma sala que la partida) ---- */
-  if (game.liveServer) root.appendChild(renderKaraokeHostPanel(karaokeEndpoint(game)));
-  else root.appendChild(h('section', { class: 'panel' }, h('h2', null, '🎤 Quieren cantar'), h('p', { class: 'muted small' }, 'Activa Bingo Hit Live (más abajo) para que los jugadores puedan apuntarse a cantar desde su tarjeta y verlos aquí.')));
 
   /* ---- Bingo Hit Live ---- */
   const bingoClaims = h('ul', { class: 'feed-list bingo-claims' });

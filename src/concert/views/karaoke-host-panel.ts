@@ -73,7 +73,7 @@ export function renderKaraokeHostPanel(endpoint: ConcertEndpoint): HTMLElement {
   const draw = () => {
     const w = watcher;
     if (!w) return;
-    const items = [...w.dj.participants.values()].filter((p) => p.state !== 'DISCONNECTED' && p.state !== 'CONNECTED').sort(byPriority);
+    const items = [...w.dj.participants.values()].filter((p) => p.state !== 'DISCONNECTED').sort(byPriority);
     count.textContent = String(items.length);
     clear(list);
     if (!items.length) list.appendChild(h('li', { class: 'muted small' }, 'Nadie se ha apuntado todavía.'));
@@ -92,6 +92,8 @@ export function renderKaraokeHostPanel(endpoint: ConcertEndpoint): HTMLElement {
       } else if (p.state === 'MUTED') {
         actions.appendChild(cmd('🔊 Reactivar', () => w.dj.unmute(p.participantId), 'btn btn-sm btn-primary'));
         actions.appendChild(cmd('■ Terminar', () => w.dj.end(p.participantId), 'btn btn-sm btn-danger'));
+      } else if (p.state === 'CONNECTED') {
+        actions.appendChild(h('span', { class: 'small muted' }, 'todavía no pulsó Quiero cantar'));
       }
       list.appendChild(
         h(

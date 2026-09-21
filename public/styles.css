@@ -469,3 +469,5 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
 .host-qr svg { width: 100%; height: auto; display: block; border-radius: 10px; }
 .host-qr-text { flex: 1 1 220px; }
 .host-qr-text h2 { margin-top: 0; }
+
+.continuous-check { margin-top: 8px; display: flex; align-items: center; gap: 8px; color: var(--muted); }

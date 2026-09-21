@@ -164,6 +164,9 @@ async function connect(endpoint: ConcertEndpoint, config: ConcertConfig): Promis
   const engine = new ConcertAudioEngine({ workletUrl: 'js/concert/audio/worklet.js', profile: config.audioProfile, noiseReduction: config.noiseReduction, aecEnabled: config.aecEnabled });
   const consumer = await createConsumerAdapter(endpoint, signaling, () => engine.ctx);
   await dj.connect('DJ');
+  listQuery = '';
+  listOffset = 0;
+  selectedSlot = null;
   session = { dj, engine, consumer, endpoint, config, consumed: new Map(), demoPhones: [], timers: [], unsubscribe: [] };
   if (isDemo(endpoint)) {
     const hub = demoHub(config, endpoint.roomId);
@@ -326,9 +329,10 @@ function renderMetrics(s: DjSession, m: ChannelMetrics): HTMLElement {
 }
 
 function renderReadyList(s: DjSession): HTMLElement {
-  const page = s.dj.readyPage(listQuery, listOffset, PAGE);
+  let page = s.dj.readyPage(listQuery, listOffset, PAGE);
   if (listOffset >= page.total && page.total > 0) {
     listOffset = Math.max(0, Math.floor((page.total - 1) / PAGE) * PAGE);
+    page = s.dj.readyPage(listQuery, listOffset, PAGE);
   }
   const search = h('input', { class: 'input', type: 'search', placeholder: 'Buscar por nombre, mesa o sector', value: listQuery });
   search.addEventListener('input', () => {

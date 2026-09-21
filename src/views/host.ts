@@ -244,7 +244,6 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       'div',
       { class: 'fields' },
       h('label', { class: 'field' }, h('span', null, 'Cada canción empieza'), startModeSelect),
-      h('label', { class: 'field field-check' }, continuousCheck, h('span', null, 'Reproducción continua: la canción sigue sonando (en bucle) hasta que pulses "Siguiente" o "Parar". Desmarcado: se corta al acabar el fragmento.')),
     ),
   );
   if (mobile) {
@@ -260,7 +259,16 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   window.addEventListener('hashchange', () => { document.removeEventListener('visibilitychange', onVisible); stopAutoDetect(); }, { once: true });
 
   /* ---- Juego ---- */
-  const gamePanel = h('section', { class: 'panel game-panel' }, h('div', { class: 'row space' }, h('h2', null, 'Canción'), counter), nowPlaying, progress, h('div', { class: 'actions' }, nextBtn, replayBtn, fromStartBtn, revealBtn, stopBtn, lyricsBtn), lyricsPanel.el);
+  const gamePanel = h(
+    'section',
+    { class: 'panel game-panel' },
+    h('div', { class: 'row space' }, h('h2', null, 'Canción'), counter),
+    nowPlaying,
+    progress,
+    h('div', { class: 'actions' }, nextBtn, replayBtn, fromStartBtn, revealBtn, stopBtn, lyricsBtn),
+    h('label', { class: 'field-check small continuous-check' }, continuousCheck, h('span', null, `Seguir la canción hasta el final (sin marcar se corta a los ${game.config.snippetSeconds} s)`)),
+    lyricsPanel.el,
+  );
   root.appendChild(gamePanel);
 
   /* ---- Karaoke: quién quiere cantar (misma sala que la partida); autorizar toma su micrófono ---- */
@@ -592,6 +600,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       publish();
       await snippetPlayer.play(track, start, continuous ? Math.max(1, (track.durationMs - start) / 1000) : game.config.snippetSeconds, {
         keepPlaying: continuous,
+        loop: continuous && isMobileBrowser(),
         onTick: (elapsed, total) => {
           progressBar.style.width = `${(elapsed / total) * 100}%`;
         },

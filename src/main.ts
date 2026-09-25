@@ -42,7 +42,7 @@ async function render(route: Route): Promise<void> {
         await renderLogin(root, route.params);
         break;
       case '/setup':
-        await renderSetup(root);
+        await renderSetup(root, route.params);
         break;
       case '/host':
         await renderHost(root);

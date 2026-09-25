@@ -5,7 +5,6 @@ import { navigate } from '../../router.js';
 import { loadGame } from '../../store.js';
 import { currentServer, formatMoney, formatWhen, hostApi, resolveServer, tokens, type CardDistribution, type EventMode, type HostEvent } from '../api.js';
 import { logout } from './login.js';
-import { renderSpotifyPanel } from '../../views/home.js';
 
 const MODE_LABEL: Record<EventMode, string> = { LOCAL: 'Presencial', ONLINE: 'Online', HYBRID: 'Híbrido' };
 const DIST_LABEL: Record<CardDistribution, string> = { FREE: 'Gratis', PAID: 'Pagadas' };
@@ -30,10 +29,18 @@ export async function renderHostEvents(root: HTMLElement, params: URLSearchParam
   }
   const list = h('section', { class: 'panel' }, h('h2', null, 'Eventos'));
   const wizardHost = h('div');
-  root.appendChild(h('section', { class: 'panel' }, h('p', null, `Hola, ${me.name}. `, h('span', { class: 'small muted' }, permissionsSummary(me.permissions))), h('div', { class: 'actions' }, button('➕ Nuevo evento', () => { clear(wizardHost); wizardHost.appendChild(renderWizard(me, null, refresh)); wizardHost.scrollIntoView({ behavior: 'smooth' }); }, 'btn btn-primary'))));
-  await renderSpotifyPanel(root);
+  root.appendChild(
+    h(
+      'section',
+      { class: 'panel' },
+      h('p', null, `Hola, ${me.name}. `, h('span', { class: 'small muted' }, permissionsSummary(me.permissions))),
+      h('ol', { class: 'steps small' }, h('li', null, h('strong', null, 'Crea el evento'), ': nombre, fecha, modalidad y tarjetas.'), h('li', null, h('strong', null, 'Elige la música'), ' de Spotify: se generan las tarjetas.'), h('li', null, h('strong', null, 'Publica y conduce'), ': muestra el QR y pasa las canciones.')),
+      h('div', { class: 'actions' }, button('➕ Nuevo evento', () => { clear(wizardHost); wizardHost.appendChild(renderWizard(me, null, refresh)); wizardHost.scrollIntoView({ behavior: 'smooth' }); }, 'btn btn-primary')),
+    ),
+  );
   root.appendChild(wizardHost);
   root.appendChild(list);
+  root.appendChild(h('p', { class: 'small muted center' }, '¿Solo quieres probar la música? ', button('Partida rápida sin evento', () => navigate('/setup'), 'btn btn-link')));
   async function refresh(): Promise<void> {
     clear(list);
     list.appendChild(h('h2', null, 'Eventos'));
@@ -66,7 +73,10 @@ function renderEventCard(e: HostEvent, me: Awaited<ReturnType<typeof hostApi.me>
   if (['DRAFT', 'PUBLISHED', 'LIVE'].includes(e.status)) actions.appendChild(button('Editar', () => { clear(wizardHost); wizardHost.appendChild(renderWizard(me, e, refresh)); wizardHost.scrollIntoView({ behavior: 'smooth' }); }, 'btn btn-sm'));
   if (e.eventMode !== 'LOCAL' && ['PUBLISHED', 'LIVE'].includes(e.status)) actions.appendChild(button('🎥 Transmitir', () => navigate(`/live?event=${encodeURIComponent(e.id)}&l=${encodeURIComponent(currentServer())}&token=${encodeURIComponent(tokens.host())}`), 'btn btn-sm'));
   if (['PUBLISHED', 'LIVE'].includes(e.status)) actions.appendChild(button('🎤 Karaoke (DJ)', () => navigate(`/dj?btalk=${encodeURIComponent(currentServer())}&room=${encodeURIComponent(e.liveRoomId ?? `bingo-${e.id}`)}&token=${encodeURIComponent(tokens.host())}`), 'btn btn-sm'));
-  actions.appendChild(button('🎵 Conducir bingo', () => navigate(`/host?event=${encodeURIComponent(e.id)}`), 'btn btn-sm'));
+  const local = loadGame();
+  const ready = local?.eventId === e.id;
+  if (ready) actions.prepend(button('▶ Conducir partida', () => navigate('/host'), 'btn btn-sm btn-primary'));
+  if (['DRAFT', 'PUBLISHED', 'LIVE'].includes(e.status)) actions.appendChild(button(e.game.tracks.length ? '🎵 Cambiar música' : '🎵 Elegir música', () => navigate(`/setup?event=${encodeURIComponent(e.id)}`), e.game.tracks.length ? 'btn btn-sm' : 'btn btn-sm btn-primary'));
   const card = h(
     'div',
     { class: `event-card status-${e.status.toLowerCase()}` },
@@ -84,6 +94,8 @@ function renderEventCard(e: HostEvent, me: Awaited<ReturnType<typeof hostApi.me>
           stat('👥 jugadores', s.uniquePlayers),
         )
       : null,
+    e.game.tracks.length ? null : h('p', { class: 'alert alert-warn small' }, 'Falta la música: pulsa "Elegir música".'),
+    e.game.tracks.length && !ready ? h('p', { class: 'small muted' }, 'La partida de este evento se abrió en otro equipo o navegador. Para conducirla aquí, vuelve a elegir la música.') : null,
     h('p', { class: 'small' }, h('a', { href: link, target: '_blank' }, link)),
     actions,
   );
@@ -114,7 +126,7 @@ function renderWizard(me: Awaited<ReturnType<typeof hostApi.me>>, existing: Host
   const p = me.permissions;
   const game = loadGame();
   const f = {
-    name: input('text', existing?.name ?? game?.playlistName ?? '', { placeholder: 'Nombre del evento', maxLength: 120, required: true }),
+    name: input('text', existing?.name ?? '', { placeholder: 'Nombre del evento', maxLength: 120, required: true }),
     description: h('textarea', { class: 'input', rows: 3, placeholder: 'Descripción' }),
     startsAt: input('datetime-local', toLocalInput(existing?.startsAt)),
     coverUrl: input('url', existing?.coverUrl ?? '', { placeholder: 'https://… (imagen de portada)' }),
@@ -154,7 +166,6 @@ function renderWizard(me: Awaited<ReturnType<typeof hostApi.me>>, existing: Host
     paidBox.hidden = dist !== 'PAID';
   };
   syncBoxes();
-  const useGame = h('input', { type: 'checkbox', checked: !existing && !!game });
   const status = h('p', { class: 'small muted' });
   const form = h(
     'form',
@@ -171,9 +182,9 @@ function renderWizard(me: Awaited<ReturnType<typeof hostApi.me>>, existing: Host
     radios<CardDistribution>('dist', [['FREE', 'Gratis', !!p.canCreateFreeEvents], ['PAID', 'Pagadas', !!p.canCreatePaidEvents]], dist, (v) => { dist = v; syncBoxes(); }),
     freeBox,
     paidBox,
-    h('h3', null, '4. Canciones'),
-    game && !existing ? h('label', { class: 'field field-check' }, useGame, ` Usar la partida actual de Spotify: ${game.playlistName} (${game.tracks.length} canciones, ${game.config.cardCount} tarjetas)`) : h('p', { class: 'small muted' }, existing ? `${existing.game.tracks.length} canciones cargadas. Para cambiarlas, crea la partida en "Partida (Spotify)" y publícala en este evento.` : 'Crea antes una partida en "Partida (Spotify)" para cargar las canciones, o hazlo después desde la pantalla del anfitrión.'),
-    h('div', { class: 'actions' }, h('button', { class: 'btn btn-primary', type: 'submit' }, existing ? 'Guardar cambios' : 'Crear evento'), button('Cancelar', () => form.remove(), 'btn btn-link')),
+    h('h3', null, '4. Música'),
+    h('p', { class: 'small muted' }, existing ? `${existing.game.tracks.length} canciones cargadas. Para cambiarlas usa "🎵 Cambiar música" en la ficha del evento.` : 'Al pulsar "Crear evento y elegir música" pasas a elegir la lista de Spotify; con ella se generan las tarjetas.'),
+    h('div', { class: 'actions' }, h('button', { class: 'btn btn-primary', type: 'submit' }, existing ? 'Guardar cambios' : 'Crear evento y elegir música ▶'), button('Cancelar', () => form.remove(), 'btn btn-link')),
     status,
   );
   form.addEventListener('submit', async (ev) => {
@@ -191,14 +202,15 @@ function renderWizard(me: Awaited<ReturnType<typeof hostApi.me>>, existing: Host
       free: { maxCardsPerPlayer: Number(f.freeMax.value) || 1, totalCardLimit: Number(f.freeTotal.value) || 0, opensAt: fromLocalInput(f.freeOpens.value), closesAt: fromLocalInput(f.freeCloses.value), allowGuests: f.freeGuests.checked, allowPromoCodes: f.freePromo.checked },
       paid: { pricePerCard: Number(f.price.value) || 0, maxCardsPerPlayer: Number(f.paidMax.value) || 3, totalCardLimit: Number(f.paidTotal.value) || 0, salesStartAt: fromLocalInput(f.salesStart.value), salesEndAt: fromLocalInput(f.salesEnd.value) },
     };
-    if (!existing && game && useGame.checked) {
-      body.game = { seed: game.config.seed, gridSize: game.config.gridSize, freeCenter: game.config.freeCenter, cardCount: game.config.cardCount, playlistName: game.playlistName, topic: game.syncTopic ?? '', tracks: game.tracks.map((t) => [t.name, t.artists]) };
-    }
     status.textContent = 'Guardando…';
     try {
       const saved = existing ? await hostApi.update(existing.id, body) : await hostApi.create(body);
-      toast(existing ? 'Evento actualizado' : `Evento ${saved.id} creado`, 'success');
+      toast(existing ? 'Evento actualizado' : 'Evento creado. Ahora elige la música.', 'success');
       form.remove();
+      if (!existing) {
+        navigate(`/setup?event=${encodeURIComponent(saved.id)}`);
+        return;
+      }
       await onDone();
     } catch (err) {
       status.textContent = '';

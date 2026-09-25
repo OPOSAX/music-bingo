@@ -99,7 +99,11 @@ y entra en su panel (`#/events`): partida Spotify, eventos y, por evento publica
 Silenciar / Terminar a mano; el panel del DJ sigue para mezclador y cancelación de eco.
 Cuando la app la sirve el servidor Bingo Hit y hay sesión de animador, la partida usa ese servidor Live sin configurarlo.
 
-**LOCAL + FREE**: animador → Nuevo evento → Presencial + Gratis → (opcional) usar la partida de Spotify actual → Crear → Publicar.
+**Flujo del animador (un solo camino)**: Nuevo evento (nombre, fecha, modalidad, tarjetas) → **Crear evento y elegir música**
+→ lista de Spotify (si no hay sesión de Spotify, se conecta y se vuelve a la misma pantalla) → se generan las tarjetas y la
+partida queda vinculada al evento → Publicar → **▶ Conducir partida**. "Partida rápida sin evento" queda solo para pruebas.
+
+**LOCAL + FREE**: animador → Nuevo evento → Presencial + Gratis → Crear evento y elegir música → Publicar.
 En `#/host` (partida Spotify) el panel "Bingo Hit Live" permite vincular la partida al evento; los jugadores del recinto
 escanean el QR de "Repartir con QR" (flujo clásico sin checkout) o abren `#/event?e=…` y pulsan OBTENER MI TARJETA.
 

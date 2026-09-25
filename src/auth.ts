@@ -107,6 +107,8 @@ async function sha256Base64Url(text: string): Promise<string> {
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+const RETURN_KEY = 'musicbingo:returnTo';
+
 /** Redirige a Spotify para iniciar sesión. */
 export async function login(): Promise<void> {
   const clientId = getClientId();
@@ -117,6 +119,8 @@ export async function login(): Promise<void> {
   const verifier = randomString(64);
   const state = randomString(16);
   sessionStorage.setItem(VERIFIER_KEY, JSON.stringify({ verifier, state }));
+  // Spotify vuelve a la raíz de la app: se recuerda la pantalla (p. ej. la música de un evento) para regresar a ella.
+  sessionStorage.setItem(RETURN_KEY, location.hash);
   const params = new URLSearchParams({
     client_id: clientId,
     response_type: 'code',
@@ -165,7 +169,9 @@ export async function handleRedirect(): Promise<boolean> {
   const error = params.get('error');
   if (!code && !error) return false;
 
-  const cleanUrl = `${location.pathname}${location.hash || ''}`;
+  const back = sessionStorage.getItem(RETURN_KEY) ?? '';
+  sessionStorage.removeItem(RETURN_KEY);
+  const cleanUrl = `${location.pathname}${location.hash || back}`;
   history.replaceState(null, '', cleanUrl);
 
   if (error) throw new AuthError(`Spotify ha rechazado el acceso: ${error}`);

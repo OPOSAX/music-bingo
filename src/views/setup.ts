@@ -9,6 +9,9 @@ import { DECADES, GENRES, buildQueries, describeOptions, pickTracks, type HitsOp
 import { navigate } from '../router.js';
 import * as api from '../spotify-api.js';
 import { createGame, loadGame, saveGame } from '../store.js';
+import * as auth from '../auth.js';
+import { hostApi, resolveServer, type HostEvent } from '../platform/api.js';
+import { renderSpotifyPanel } from './home.js';
 
 interface Source {
   kind: 'playlist' | 'saved' | 'generated';
@@ -19,12 +22,34 @@ interface Source {
   tracks?: Track[];
 }
 
-export async function renderSetup(root: HTMLElement): Promise<void> {
+export async function renderSetup(root: HTMLElement, params: URLSearchParams = new URLSearchParams()): Promise<void> {
   clear(root);
   let selected: Source | null = null;
 
-  const header = h('header', { class: 'page-header' }, h('h1', null, 'Nueva partida'), button('← Inicio', () => navigate('/'), 'btn btn-link'));
+  // Música de un evento: la partida que se crea aquí queda vinculada a ese evento.
+  const eventId = params.get('event') ?? '';
+  let event: HostEvent | null = null;
+  if (eventId) {
+    try {
+      await resolveServer(null);
+      event = await hostApi.event(eventId);
+    } catch (err) {
+      root.appendChild(h('section', { class: 'panel' }, h('p', { class: 'alert alert-error' }, `No se pudo abrir el evento: ${errorMessage(err)}`), button('← Mis eventos', () => navigate('/events'), 'btn')));
+      return;
+    }
+  }
+  const header = h(
+    'header',
+    { class: 'page-header' },
+    h('div', null, h('h1', null, event ? `🎵 Música del evento` : 'Partida rápida (sin evento)'), event ? h('p', { class: 'muted' }, `${event.name} · paso final: elige la lista y se generan las tarjetas`) : null),
+    button(event ? '← Mis eventos' : '← Inicio', () => navigate(event ? '/events' : '/'), 'btn btn-link'),
+  );
   root.appendChild(header);
+  if (!auth.isLoggedIn() || !auth.getClientId()) {
+    root.appendChild(h('p', { class: 'alert alert-warn' }, 'Para elegir la música conecta la cuenta de Spotify Premium que sonará en el evento. Al volver seguirás aquí.'));
+    await renderSpotifyPanel(root);
+    return;
+  }
 
   /* ---- Paso 1: lista ---- */
   const selectedLabel = h('p', { class: 'muted' }, 'Ninguna lista seleccionada.');
@@ -188,7 +213,7 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
   const gridSelect = h('select', { class: 'input' }, h('option', { value: '3' }, '3 × 3 (9 canciones, rápido)'), h('option', { value: '4' }, '4 × 4 (16 canciones)'), h('option', { value: '5' }, '5 × 5 (25 canciones, clásico)'));
   gridSelect.value = String(previous?.gridSize ?? 5);
   const freeCenter = h('input', { type: 'checkbox', checked: previous?.freeCenter ?? true });
-  const cardCount = h('input', { class: 'input', type: 'number', min: '1', max: '500', value: String(previous?.cardCount ?? 20) });
+  const cardCount = h('input', { class: 'input', type: 'number', min: '1', max: '500', value: String(event ? Math.min(500, Math.max(1, event.capacity)) : previous?.cardCount ?? 20) });
   const snippet = h('input', { class: 'input', type: 'number', min: '3', max: '120', value: String(previous?.snippetSeconds ?? 20) });
   const startMode = h('select', { class: 'input' }, h('option', { value: 'random' }, 'Punto aleatorio de la canción'), h('option', { value: 'middle' }, 'Hacia la mitad (suele ser el estribillo)'), h('option', { value: 'start' }, 'Desde el principio'));
   startMode.value = previous?.startMode ?? 'random';
@@ -256,8 +281,14 @@ export async function renderSetup(root: HTMLElement): Promise<void> {
         errors.forEach((e) => toast(e, 'error'));
         return;
       }
-      saveGame(createGame(config, selected.name, tracks));
-      toast(`Partida ${config.seed} creada con ${tracks.length} canciones.`, 'success');
+      const game = createGame(config, selected.name, tracks);
+      if (event) {
+        game.eventId = event.id;
+        status.textContent = 'Guardando la música en el evento…';
+        await hostApi.setGame(event.id, { seed: config.seed, gridSize: config.gridSize, freeCenter: config.freeCenter, cardCount: config.cardCount, playlistName: selected.name, topic: game.syncTopic ?? '', tracks: tracks.map((t) => [t.name, t.artists]) });
+      }
+      saveGame(game);
+      toast(event ? `Música lista para "${event.name}": ${tracks.length} canciones, ${config.cardCount} tarjetas.` : `Partida ${config.seed} creada con ${tracks.length} canciones.`, 'success');
       navigate('/host');
     } catch (err) {
       status.textContent = '';

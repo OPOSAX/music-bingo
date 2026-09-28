@@ -325,7 +325,7 @@ module.exports = class Room {
         const { maxIncomingBitrate, initialAvailableOutgoingBitrate, listenInfos } = this.webRtcTransport;
 
         const webRtcTransportOptions = {
-            ...(this.webRtcServerActive ? { webRtcServer: this.webRtcServer } : { listenInfos: listenInfos }),
+            ...(this.webRtcServerActive && this.webRtcServer ? { webRtcServer: this.webRtcServer } : { listenInfos: listenInfos }),
             enableUdp: true,
             enableTcp: true,
             preferUdp: true,

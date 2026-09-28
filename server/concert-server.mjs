@@ -125,6 +125,16 @@ export async function startServer(options = {}) {
             log.error('Mediasoup worker died, exiting in 2 seconds... [pid:%d]', worker.pid);
             setTimeout(() => process.exit(1), 2000);
         });
+        if (config.mediasoup.webRtcServerActive) {
+            // Puerto fijo por worker dentro del rango publicado; si está ocupado se vuelve a un puerto por transporte.
+            const port = rtcMinPort + i;
+            const listenInfos = ['udp', 'tcp'].map((protocol) => ({ protocol, ip: '0.0.0.0', announcedAddress: config.announcedAddress, port }));
+            try {
+                worker.appData.webRtcServer = await worker.createWebRtcServer({ listenInfos });
+            } catch (err) {
+                log.warn('No se pudo crear el WebRtcServer: se usa un puerto por transporte', { port, error: err.message });
+            }
+        }
         workers.push(worker);
     }
     let nextWorker = 0;

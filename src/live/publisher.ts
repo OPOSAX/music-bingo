@@ -45,6 +45,8 @@ export class LiveHostPublisher {
   micMuted = false;
   camMuted = false;
   private readonly offs: (() => void)[] = [];
+  /** Vista previa e inicio van en cola: una vista previa en curso no puede detener las pistas que se están publicando. */
+  private queue: Promise<unknown> = Promise.resolve();
 
   constructor(
     readonly session: LiveSession,
@@ -66,7 +68,17 @@ export class LiveHostPublisher {
   }
 
   /** Vista previa local (pide permisos). Si ya está en directo, sustituye las pistas sin cortar la emisión. */
-  async preview(options: Partial<PublisherOptions> = {}): Promise<MediaStream> {
+  preview(options: Partial<PublisherOptions> = {}): Promise<MediaStream> {
+    return this.enqueue(() => this.openDevices(options));
+  }
+
+  private enqueue<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(task, task);
+    this.queue = run.catch(() => undefined);
+    return run;
+  }
+
+  private async openDevices(options: Partial<PublisherOptions> = {}): Promise<MediaStream> {
     this.options = { ...this.options, ...options };
     const next = await navigator.mediaDevices.getUserMedia(this.constraints());
     const prev = this.stream;
@@ -108,8 +120,12 @@ export class LiveHostPublisher {
     return Math.min(1, Math.sqrt(sum / this.levelBuf.length) * 3);
   }
 
-  async goLive(): Promise<void> {
-    if (!this.stream) await this.preview();
+  goLive(): Promise<void> {
+    return this.enqueue(() => this.publish());
+  }
+
+  private async publish(): Promise<void> {
+    if (!this.stream || this.stream.getTracks().some((t) => t.readyState === 'ended')) await this.openDevices();
     const stream = this.stream as MediaStream;
     const ack = await this.session.connect();
     if (ack.role !== 'host') throw new Error('Este token no es de animador');

@@ -75,9 +75,29 @@ module.exports = {
                     clockRate: 48000,
                     channels: 2,
                 },
+                // Bingo Hit Live: cámara del animador. El karaoke sigue siendo solo audio (lo impone concert:produce).
+                {
+                    kind: 'video',
+                    mimeType: 'video/VP8',
+                    clockRate: 90000,
+                    parameters: { 'x-google-start-bitrate': 1000 },
+                },
+                {
+                    kind: 'video',
+                    mimeType: 'video/H264',
+                    clockRate: 90000,
+                    parameters: {
+                        'packetization-mode': 1,
+                        'profile-level-id': '42e01f',
+                        'level-asymmetry-allowed': 1,
+                        'x-google-start-bitrate': 1000,
+                    },
+                },
             ],
         },
-        webRtcServerActive: false,
+        // Un WebRtcServer por worker: todos los transportes comparten un puerto (rtcMinPort + nº de worker), así el
+        // número de espectadores no queda limitado por el rango de puertos. WEBRTC_SERVER=false vuelve a un puerto por transporte.
+        webRtcServerActive: process.env.WEBRTC_SERVER !== 'false',
         webRtcServerOptions: { listenInfos: [] },
         webRtcTransport: {
             listenInfos: [
@@ -87,7 +107,8 @@ module.exports = {
             initialAvailableOutgoingBitrate: 600000,
             minimumAvailableOutgoingBitrate: 300000,
             maxSctpMessageSize: 262144,
-            maxIncomingBitrate: 256000,
+            // Límite de subida por transporte: debe dejar pasar el vídeo del animador (1200 kb/s + audio).
+            maxIncomingBitrate: Number(process.env.MAX_INCOMING_BITRATE) || 1500000,
         },
     },
 };

@@ -237,3 +237,22 @@ test('cambiar de canción no toca a los READY; listado paginado y búsqueda', ()
   assert.ok(search.items.every((p) => p.name.includes('10') || p.asiento?.includes('10')));
   assert.ok(!('socketId' in page.items[0]!) && !('producerId' in page.items[0]!), 'no se filtran datos internos');
 });
+
+test('los operadores reciben los slots actualizados (con producerId) para poder consumir el micrófono', async () => {
+  const { room, sent } = makeRoom();
+  const { participantId } = room.join('s1', { name: 'Ana' });
+  room.ready(participantId);
+  const lastSlots = () => {
+    const last = sent.filter((m) => m.to === 'operators' && m.event === 'concert:metrics').at(-1);
+    return (last?.payload as { slots: { slotId: string; state: string; producerId?: string }[] } | undefined)?.slots ?? [];
+  };
+  assert.equal(lastSlots().length, 0, 'READY no ocupa slot: sin aviso de métricas');
+  const slotId = prepareUntilPrepared(room, participantId, 'prod1');
+  assert.deepEqual(lastSlots().find((s) => s.slotId === slotId), { slotId, state: 'PREPARED', participantId, producerId: 'prod1', since: 1000 });
+  await room.goLive('dj', participantId);
+  assert.equal(lastSlots().find((s) => s.slotId === slotId)?.state, 'LIVE');
+  await room.end('dj', participantId);
+  const freed = lastSlots().find((s) => s.slotId === slotId);
+  assert.equal(freed?.state, 'EMPTY');
+  assert.equal(freed?.producerId, undefined);
+});

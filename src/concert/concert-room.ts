@@ -393,10 +393,13 @@ export class ConcertRoom {
 
   private setState(p: Participant, to: ParticipantState): void {
     if (!canTransition(p.state, to)) throw new ConcertError('invalid-transition', `${p.state} → ${to} no está permitido`);
+    const from = p.state;
     p.state = to;
     if (!SLOT_STATES.includes(to)) p.slotId = undefined;
     if (p.socketId) this.emitter.toParticipant(p.participantId, 'concert:state', this.publicInfo(p));
     this.emitter.toOperators('concert:participant-updated', this.publicInfo(p));
+    // Los operadores leen los slots (y su producerId) de las métricas: sin este aviso nunca consumen el micrófono.
+    if (SLOT_STATES.includes(from) || SLOT_STATES.includes(to)) this.emitter.toOperators('concert:metrics', this.metrics());
   }
 
   /** Cierra el producer y libera el slot (sin cambiar el estado del participante). */
@@ -417,6 +420,7 @@ export class ConcertRoom {
         slot.participantId = undefined;
         slot.producerId = undefined;
         slot.since = undefined;
+        this.emitter.toOperators('concert:metrics', this.metrics());
       }
     }
   }

@@ -262,6 +262,27 @@ export class PlatformService {
     return event;
   }
 
+  /**
+   * Borra un evento con sus tarjetas, accesos, órdenes sin pagar y promociones propias. Un evento en curso se
+   * termina antes; si tiene pagos registrados no se borra (los registros de cobro se conservan): se termina.
+   */
+  deleteEvent(actor, id) {
+    const event = this.ownedEvent(actor, id);
+    if (event.status === 'LIVE') throw new PlatformError(409, 'status', 'El evento está en curso: termínalo antes de borrarlo');
+    if (this.store.find('orders', (o) => o.eventId === id && ['PAID', 'REFUNDED'].includes(o.status))) throw new PlatformError(409, 'has-payments', 'Este evento tiene pagos registrados y no se puede borrar: márcalo como terminado');
+    const orderIds = new Set(this.store.list('orders', (o) => o.eventId === id).map((o) => o.id));
+    const removed = {
+      cards: this.store.remove('cards', (c) => c.eventId === id),
+      access: this.store.remove('eventAccess', (a) => a.eventId === id),
+      payments: this.store.remove('payments', (p) => orderIds.has(p.orderId)),
+      orders: this.store.remove('orders', (o) => o.eventId === id),
+      promotions: this.store.remove('promotions', (p) => p.eventId === id),
+    };
+    this.store.remove('events', (e) => e.id === id);
+    this.store.audit(actor.id, 'event.delete', { eventId: id, name: event.name, ...removed });
+    return { deleted: true, id, ...removed };
+  }
+
   /** ¿Puede este usuario operar (publicar estado, transmitir) la sala Live del evento? */
   canOperateRoom(user, roomId) {
     if (!user) return false;

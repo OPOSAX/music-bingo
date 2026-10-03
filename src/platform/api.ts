@@ -184,6 +184,7 @@ export const hostApi = {
   publish: (id: string) => api<HostEvent>('POST', `/api/host/events/${id}/publish`, { token: tokens.host() }),
   start: (id: string) => api<HostEvent>('POST', `/api/host/events/${id}/start`, { token: tokens.host() }),
   finish: (id: string) => api<HostEvent>('POST', `/api/host/events/${id}/finish`, { token: tokens.host() }),
+  remove: (id: string) => api<{ deleted: true; id: string }>('DELETE', `/api/host/events/${id}`, { token: tokens.host() }),
   stats: (id: string) => api<EventStats>('GET', `/api/host/events/${id}/stats`, { token: tokens.host() }),
   players: (id: string) => api<{ playerId: string; name: string; cards: { index: number; acquisitionType: string }[] }[]>('GET', `/api/host/events/${id}/players`, { token: tokens.host() }),
 };

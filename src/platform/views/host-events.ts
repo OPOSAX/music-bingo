@@ -70,6 +70,16 @@ function renderEventCard(e: HostEvent, me: Awaited<ReturnType<typeof hostApi.me>
   if (e.status === 'DRAFT') actions.appendChild(act('Publicar', () => hostApi.publish(e.id), 'btn btn-sm btn-primary'));
   if (e.status === 'PUBLISHED') actions.appendChild(act('▶ Empezar evento', () => hostApi.start(e.id), 'btn btn-sm btn-primary'));
   if (e.status === 'LIVE') actions.appendChild(act('■ Terminar', () => hostApi.finish(e.id), 'btn btn-sm btn-danger'));
+  // Borrar: un clic con confirmación. Los eventos en curso se terminan primero; los que tienen pagos no se borran (lo dice el servidor).
+  if (e.status !== 'LIVE') {
+    actions.appendChild(
+      act('🗑 Borrar', async () => {
+        if (!confirm(`¿Borrar el evento "${e.name}"? Se eliminan sus tarjetas y jugadores. Esto no se puede deshacer.`)) return;
+        await hostApi.remove(e.id);
+        toast(`Evento "${e.name}" borrado`, 'success');
+      }, 'btn btn-sm btn-danger'),
+    );
+  }
   if (['DRAFT', 'PUBLISHED', 'LIVE'].includes(e.status)) actions.appendChild(button('Editar', () => { clear(wizardHost); wizardHost.appendChild(renderWizard(me, e, refresh)); wizardHost.scrollIntoView({ behavior: 'smooth' }); }, 'btn btn-sm'));
   if (e.eventMode !== 'LOCAL' && ['PUBLISHED', 'LIVE'].includes(e.status)) actions.appendChild(button('🎥 Transmitir', () => navigate(`/live?event=${encodeURIComponent(e.id)}&l=${encodeURIComponent(currentServer())}&token=${encodeURIComponent(tokens.host())}`), 'btn btn-sm'));
   if (['PUBLISHED', 'LIVE'].includes(e.status)) actions.appendChild(button('🎤 Karaoke (DJ)', () => navigate(`/dj?btalk=${encodeURIComponent(currentServer())}&room=${encodeURIComponent(e.liveRoomId ?? `bingo-${e.id}`)}&token=${encodeURIComponent(tokens.host())}`), 'btn btn-sm'));

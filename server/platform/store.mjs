@@ -117,6 +117,15 @@ export class Store {
     return record;
   }
 
+  /** Elimina los registros que cumplen el predicado y devuelve cuántos eran. */
+  remove(collection, predicate) {
+    const before = this.db[collection].length;
+    this.db[collection] = this.db[collection].filter((r) => !predicate(r));
+    const removed = before - this.db[collection].length;
+    if (removed) this.save();
+    return removed;
+  }
+
   audit(actor, action, details = {}) {
     this.db.audit.push({ t: new Date().toISOString(), actor, action, ...details });
     if (this.db.audit.length > 5000) this.db.audit.splice(0, this.db.audit.length - 5000);

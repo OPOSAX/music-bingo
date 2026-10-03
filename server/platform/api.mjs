@@ -151,6 +151,7 @@ export function createPlatformApi(service, options = {}) {
   on('POST', '/api/host/events/:id/publish', 'any', ({ who, params }) => service.setEventStatus(host(who), params.id, 'PUBLISHED'));
   on('POST', '/api/host/events/:id/start', 'any', ({ who, params }) => service.setEventStatus(host(who), params.id, 'LIVE'));
   on('POST', '/api/host/events/:id/finish', 'any', ({ who, params }) => service.setEventStatus(host(who), params.id, 'FINISHED'));
+  on('DELETE', '/api/host/events/:id', 'any', ({ who, params }) => service.deleteEvent(host(who), params.id));
   on('GET', '/api/host/events/:id/stats', 'any', ({ who, params }) => service.eventStats(service.ownedEvent(host(who), params.id).id));
   on('GET', '/api/host/events/:id/players', 'any', ({ who, params }) => {
     const e = service.ownedEvent(host(who), params.id);

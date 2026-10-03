@@ -245,3 +245,34 @@ test('configuración: las credenciales nunca se devuelven en claro', async () =>
   server.closeAllConnections();
   server.close();
 });
+
+test('borrar evento: se lleva tarjetas y accesos; en curso o con pagos no se borra', async () => {
+  const { server, call, store } = await boot();
+  const { data: h } = await call('POST', '/api/admin/hosts', { token: 'admin-token', body: { name: 'H', username: 'host9', password: 'secreta1' } });
+  const tracks = [['A', 'a'], ['B', 'b'], ['C', 'c'], ['D', 'd'], ['E', 'e'], ['F', 'f'], ['G', 'g'], ['H', 'h'], ['I', 'i']];
+  const ev = (await call('POST', '/api/host/events', { token: h.token, body: { name: 'Borrable', eventMode: 'ONLINE', cardDistribution: 'FREE', capacity: 3, game: { tracks, cardSize: 3 } } })).data;
+  await call('POST', `/api/host/events/${ev.id}/publish`, { token: h.token });
+  const p = (await call('POST', '/api/players', { body: { name: 'Marta' } })).data;
+  assert.equal((await call('POST', `/api/events/${ev.id}/cards/free`, { token: p.token, body: { quantity: 1 } })).status, 200);
+  // Otro animador no puede borrarlo
+  const { data: other } = await call('POST', '/api/admin/hosts', { token: 'admin-token', body: { name: 'O', username: 'otro9', password: 'secreta1' } });
+  assert.equal((await call('DELETE', `/api/host/events/${ev.id}`, { token: other.token })).status, 403);
+  // En curso: primero hay que terminarlo
+  await call('POST', `/api/host/events/${ev.id}/start`, { token: h.token });
+  assert.equal((await call('DELETE', `/api/host/events/${ev.id}`, { token: h.token })).status, 409);
+  await call('POST', `/api/host/events/${ev.id}/finish`, { token: h.token });
+  const del = await call('DELETE', `/api/host/events/${ev.id}`, { token: h.token });
+  assert.equal(del.status, 200);
+  assert.equal(del.data.cards, 1);
+  assert.equal((await call('GET', `/api/events/${ev.id}`, {})).status, 404);
+  assert.equal(store.list('cards', (c) => c.eventId === ev.id).length, 0);
+  assert.equal(store.list('eventAccess', (a) => a.eventId === ev.id).length, 0);
+  assert.equal((await call('GET', '/api/host/events', { token: h.token })).data.length, 0);
+  // Con pagos registrados no se borra
+  const paid = (await call('POST', '/api/host/events', { token: h.token, body: { name: 'Pagado', eventMode: 'LOCAL', cardDistribution: 'FREE', capacity: 3, game: { tracks, cardSize: 3 } } })).data;
+  store.insert('orders', { id: 'order_x', eventId: paid.id, playerId: p.id, quantity: 1, total: 3000, currency: 'CLP', status: 'PAID' });
+  const kept = await call('DELETE', `/api/host/events/${paid.id}`, { token: h.token });
+  assert.equal(kept.status, 409);
+  assert.equal(kept.data.error, 'has-payments');
+  server.close();
+});

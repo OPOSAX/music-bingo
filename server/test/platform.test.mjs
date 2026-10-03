@@ -70,7 +70,7 @@ test('roles y permisos: solo el admin crea animadores; permisos validados en el 
   assert.equal(ok.status, 200);
   assert.equal(ok.data.paid.pricePerCard, 3000, 'sin hostCanSetPrice se usa el precio fijo de la plataforma');
   assert.equal(ok.data.liveRoomId, `bingo-${ok.data.id}`);
-  assert.equal(ok.data.status, 'DRAFT');
+  assert.equal(ok.data.status, 'PUBLISHED', 'el evento nace publicado: el QR funciona sin pasos extra');
   // Suspender animador
   await call('PATCH', `/api/admin/hosts/${created.data.user.id}`, { token: 'admin-token', body: { status: 'SUSPENDED' } });
   assert.equal((await call('GET', '/api/host/events', { token: hostToken })).status, 403);
@@ -105,7 +105,8 @@ test('ONLINE + FREE: tarjeta sin checkout, límites y acceso centralizado', asyn
   const { data: h } = await call('POST', '/api/admin/hosts', { token: 'admin-token', body: { name: 'H', username: 'host2', password: 'secreta1' } });
   const ev = (await call('POST', '/api/host/events', { token: h.token, body: { name: 'Gratis', eventMode: 'ONLINE', cardDistribution: 'FREE', capacity: 3, free: { maxCardsPerPlayer: 2 }, game: { tracks: [['A', 'a'], ['B', 'b'], ['C', 'c'], ['D', 'd'], ['E', 'e'], ['F', 'f'], ['G', 'g'], ['H', 'h'], ['I', 'i']], gridSize: 3, freeCenter: false }, startsAt: new Date(Date.now() + 3600e3).toISOString() } })).data;
   const p = (await call('POST', '/api/players', { body: { name: 'Marta' } })).data;
-  // Borrador: no se puede
+  // Un evento terminado no reparte tarjetas; recién creado (ya publicado) sí.
+  await call('POST', `/api/host/events/${ev.id}/finish`, { token: h.token });
   assert.equal((await call('POST', `/api/events/${ev.id}/cards/free`, { token: p.token, body: {} })).status, 409);
   await call('POST', `/api/host/events/${ev.id}/publish`, { token: h.token });
   const denied = (await call('GET', `/api/events/${ev.id}/access`, { token: p.token })).data;

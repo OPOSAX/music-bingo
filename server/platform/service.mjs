@@ -209,7 +209,8 @@ export class PlatformService {
         salesEndAt: input.paid?.salesEndAt || null,
       },
       game: this.normalizeGame({ ...input.game, cardCount: input.game?.cardCount ?? capacity }),
-      status: 'DRAFT',
+      // Publicado desde el primer momento: el QR del evento debe funcionar sin pasos extra.
+      status: 'PUBLISHED',
       liveRoomId: `bingo-${id}`,
       createdAt: now(),
     };

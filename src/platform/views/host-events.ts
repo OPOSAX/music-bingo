@@ -70,7 +70,7 @@ function renderEventCard(e: HostEvent, me: Awaited<ReturnType<typeof hostApi.me>
   if (e.status === 'DRAFT') actions.appendChild(act('Publicar', () => hostApi.publish(e.id), 'btn btn-sm btn-primary'));
   if (e.status === 'PUBLISHED') actions.appendChild(act('▶ Empezar evento', () => hostApi.start(e.id), 'btn btn-sm btn-primary'));
   if (e.status === 'LIVE') actions.appendChild(act('■ Terminar', () => hostApi.finish(e.id), 'btn btn-sm btn-danger'));
-  // Borrar: un clic con confirmación. Los eventos en curso se terminan primero; los que tienen pagos no se borran (lo dice el servidor).
+  // Borrar: un clic con confirmación. Los eventos en curso se terminan primero; las órdenes pagadas se conservan como registro.
   if (e.status !== 'LIVE') {
     actions.appendChild(
       act('🗑 Borrar', async () => {

@@ -265,19 +265,23 @@ export class PlatformService {
 
   /**
    * Borra un evento con sus tarjetas, accesos, órdenes sin pagar y promociones propias. Un evento en curso se
-   * termina antes; si tiene pagos registrados no se borra (los registros de cobro se conservan): se termina.
+   * termina antes. Las órdenes pagadas o reembolsadas y sus pagos se conservan como registro de cobro (con el
+   * nombre del evento anotado), pero dejan de estorbar: el evento desaparece del panel.
    */
   deleteEvent(actor, id) {
     const event = this.ownedEvent(actor, id);
     if (event.status === 'LIVE') throw new PlatformError(409, 'status', 'El evento está en curso: termínalo antes de borrarlo');
-    if (this.store.find('orders', (o) => o.eventId === id && ['PAID', 'REFUNDED'].includes(o.status))) throw new PlatformError(409, 'has-payments', 'Este evento tiene pagos registrados y no se puede borrar: márcalo como terminado');
-    const orderIds = new Set(this.store.list('orders', (o) => o.eventId === id).map((o) => o.id));
+    const keep = (o) => ['PAID', 'REFUNDED'].includes(o.status);
+    const kept = this.store.list('orders', (o) => o.eventId === id && keep(o));
+    for (const o of kept) this.store.update('orders', o.id, { eventName: event.name, eventDeletedAt: now() });
+    const dropOrderIds = new Set(this.store.list('orders', (o) => o.eventId === id && !keep(o)).map((o) => o.id));
     const removed = {
       cards: this.store.remove('cards', (c) => c.eventId === id),
       access: this.store.remove('eventAccess', (a) => a.eventId === id),
-      payments: this.store.remove('payments', (p) => orderIds.has(p.orderId)),
-      orders: this.store.remove('orders', (o) => o.eventId === id),
+      payments: this.store.remove('payments', (p) => dropOrderIds.has(p.orderId)),
+      orders: this.store.remove('orders', (o) => dropOrderIds.has(o.id)),
       promotions: this.store.remove('promotions', (p) => p.eventId === id),
+      ordersKept: kept.length,
     };
     this.store.remove('events', (e) => e.id === id);
     this.store.audit(actor.id, 'event.delete', { eventId: id, name: event.name, ...removed });

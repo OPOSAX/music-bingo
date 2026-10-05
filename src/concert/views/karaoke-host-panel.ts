@@ -1,8 +1,9 @@
 /**
  * Panel del anfitrión "Quieren cantar": los jugadores pulsan "Quiero cantar" en su tarjeta (misma sala que la partida)
  * y aparecen aquí. Con un solo botón el anfitrión autoriza: el servidor prepara el micrófono del teléfono, al estar
- * listo lo pone en vivo y el audio suena por este equipo. Silenciar y Terminar siempre a mano. El panel del DJ sigue
- * disponible para el control avanzado (mezclador, cancelación de eco, varios micrófonos).
+ * listo lo pone en vivo y el audio suena por este equipo, procesado (paso alto, EQ, compresor, limitador y ganancia)
+ * para que la voz se oiga por encima de la música; la música baja sola mientras alguien canta. Silenciar y Terminar
+ * siempre a mano. El panel del DJ sigue disponible para el control avanzado (cancelación de eco, varios micrófonos).
  */
 
 import { button, clear, errorMessage, formatDuration, h, toast } from '../../dom.js';
@@ -12,6 +13,18 @@ import { DjClient } from '../dj-client.js';
 import { EVENTS, type ParticipantInfo, type ParticipantState } from '../protocol.js';
 import { createConsumerAdapter, createSignaling, type ConcertEndpoint } from '../session.js';
 import { loadConfig } from '../store.js';
+import { DEFAULT_MIX, VoiceChain, loadMix, saveMix, type MixSettings } from '../audio/voice-chain.js';
+
+/** Control del volumen de la música (reproductor de Spotify del anfitrión) para bajarla mientras alguien canta. */
+export interface MusicControl {
+  /** Volumen actual 0..1 */
+  get(): number;
+  set(volume: number): Promise<void> | void;
+}
+
+export interface KaraokeHostOptions {
+  music?: MusicControl;
+}
 
 interface Watcher {
   dj: DjClient;
@@ -21,7 +34,12 @@ interface Watcher {
   autoLive: Set<string>;
   consumer: ConsumerAdapter | null;
   ctx: AudioContext | null;
-  playing: Map<string, { stop(): void }>; // producerId → salida de audio
+  master: GainNode | null;
+  playing: Map<string, { stop(): void; chain?: VoiceChain }>; // producerId → salida de audio
+  mix: MixSettings;
+  music: MusicControl | null;
+  /** Volumen de la música antes de bajarla (null = no está bajada). */
+  musicBefore: number | null;
 }
 
 let watcher: Watcher | null = null;
@@ -34,6 +52,7 @@ export function releaseKaraokeWatch(): void {
   for (const p of w.playing.values()) p.stop();
   w.playing.clear();
   w.consumer?.closeAll();
+  void restoreMusic(w);
   void w.ctx?.close().catch(() => undefined);
   w.dj.disconnect();
 }
@@ -56,17 +75,19 @@ export function djPanelUrl(endpoint: ConcertEndpoint): string {
   return `/dj?${params.toString()}`;
 }
 
-export function renderKaraokeHostPanel(endpoint: ConcertEndpoint): HTMLElement {
+export function renderKaraokeHostPanel(endpoint: ConcertEndpoint, options: KaraokeHostOptions = {}): HTMLElement {
   const list = h('ul', { class: 'ready-list karaoke-list' });
   const count = h('span', { class: 'badge badge-ok' }, '0');
   const status = h('p', { class: 'small muted' }, 'Conectando con la sala…');
-  const audioNote = h('p', { class: 'small muted' }, '🔊 El micrófono autorizado suena por la salida de audio de este equipo. Para mezclador, cancelación de eco o varios micrófonos usa el panel del DJ.');
+  const audioNote = h('p', { class: 'small muted' }, '🔊 El micrófono autorizado suena por la salida de audio de este equipo. Para cancelación de eco o varios micrófonos usa el panel del DJ.');
+  const mixer = renderMixer(options.music ?? null);
   const panel = h(
     'section',
     { class: 'panel karaoke-host' },
     h('div', { class: 'row space' }, h('h2', null, '🎤 Quieren cantar ', count), h('div', { class: 'actions' }, button('Panel del DJ', () => navigate(djPanelUrl(endpoint)), 'btn btn-sm'))),
     h('p', { class: 'small muted' }, 'Los jugadores pulsan "Quiero cantar" en su tarjeta y aparecen aquí. Pulsa Autorizar para tomar su micrófono y sacar su voz por el PA.'),
     list,
+    mixer.el,
     audioNote,
     status,
   );
@@ -105,6 +126,7 @@ export function renderKaraokeHostPanel(endpoint: ConcertEndpoint): HTMLElement {
       );
     }
     void syncAudio(w);
+    void duckMusic(w);
   };
   void (async () => {
     try {
@@ -113,7 +135,7 @@ export function renderKaraokeHostPanel(endpoint: ConcertEndpoint): HTMLElement {
         const signaling = await createSignaling(endpoint, 'dj', loadConfig());
         const dj = new DjClient(signaling, endpoint.roomId);
         await dj.connect('Anfitrión');
-        const w: Watcher = { dj, room: endpoint.roomId, offs: [], autoLive: new Set(), consumer: null, ctx: null, playing: new Map() };
+        const w: Watcher = { dj, room: endpoint.roomId, offs: [], autoLive: new Set(), consumer: null, ctx: null, master: null, playing: new Map(), mix: loadMix(), music: options.music ?? null, musicBefore: null };
         w.offs.push(dj.onChange(draw));
         // Autorizado por el anfitrión: en cuanto el teléfono está preparado, GO LIVE sin más clics.
         w.offs.push(
@@ -136,7 +158,11 @@ export function renderKaraokeHostPanel(endpoint: ConcertEndpoint): HTMLElement {
         w.offs.push(() => clearInterval(tick));
       } else {
         watcher.offs.push(watcher.dj.onChange(draw));
+        if (options.music) watcher.music = options.music;
       }
+      mixer.bind(watcher);
+      const meter = setInterval(() => (panel.isConnected ? mixer.tick(watcher) : clearInterval(meter)), 100);
+      watcher.offs.push(() => clearInterval(meter));
       status.textContent = `Sala ${endpoint.roomId} · ${endpoint.btalkUrl || 'demo local'}`;
       draw();
     } catch (err) {
@@ -170,6 +196,8 @@ function ensureAudio(w: Watcher): void {
   const Ctx = (globalThis as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext ?? (globalThis as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctx) return;
   w.ctx = new Ctx();
+  w.master = w.ctx.createGain();
+  w.master.connect(w.ctx.destination);
 }
 
 /** Reproduce por este equipo los micrófonos preparados o en vivo; cierra los que terminaron. */
@@ -183,7 +211,8 @@ async function syncAudio(w: Watcher): Promise<void> {
     w.consumer.close(producerId);
     w.playing.delete(producerId);
   }
-  if (!w.ctx) return;
+  if (!w.ctx || !w.master) return;
+  const master = w.master;
   for (const producerId of active) {
     if (w.playing.has(producerId)) continue;
     const placeholder = { stop: () => undefined };
@@ -192,24 +221,132 @@ async function syncAudio(w: Watcher): Promise<void> {
       const source = await w.consumer.consume(producerId);
       if (watcher !== w || w.playing.get(producerId) !== placeholder) return;
       const ctx = w.ctx;
+      // Cadena de voz: paso alto → EQ → ganancia → compresor → limitador. Sin esto el teléfono se pierde bajo la música.
+      const chain = new VoiceChain(ctx);
+      applyMix(chain, w.mix);
+      chain.output.connect(master);
       if (source instanceof MediaStream) {
         // Un elemento <audio> mantiene viva la pista WebRTC; el AudioContext la saca por la salida por defecto.
         const el = new Audio();
         el.srcObject = source;
         el.muted = true;
         void el.play().catch(() => undefined);
-        const node = ctx.createMediaStreamSource(source);
-        node.connect(ctx.destination);
-        w.playing.set(producerId, { stop: () => { node.disconnect(); el.pause(); el.srcObject = null; } });
+        chain.setSource(source);
+        w.playing.set(producerId, { chain, stop: () => { chain.dispose(); el.pause(); el.srcObject = null; } });
       } else {
-        source.connect(ctx.destination);
-        w.playing.set(producerId, { stop: () => source.disconnect() });
+        chain.setSource(source);
+        w.playing.set(producerId, { chain, stop: () => { chain.dispose(); source.disconnect(); } });
       }
     } catch (err) {
       w.playing.delete(producerId);
       toast(`No se pudo recibir el micrófono: ${errorMessage(err)}`, 'error');
     }
   }
+}
+
+/* ---------------- Mezcla: voz procesada y música que baja mientras cantan ---------------- */
+
+function applyMix(chain: VoiceChain, mix: MixSettings): void {
+  chain.applyPreset(mix.preset);
+  chain.setGainDb(mix.voiceDb);
+  chain.setProcessing(mix.processing);
+}
+
+function applyMixToAll(w: Watcher): void {
+  for (const p of w.playing.values()) if (p.chain) applyMix(p.chain, w.mix);
+}
+
+/** Baja la música mientras haya un micrófono en vivo y la devuelve a su nivel cuando no queda ninguno. */
+async function duckMusic(w: Watcher): Promise<void> {
+  if (!w.music) return;
+  const singing = w.dj.slots.some((s) => s.state === 'LIVE');
+  try {
+    if (singing && w.mix.autoDuck) {
+      if (w.musicBefore === null) w.musicBefore = w.music.get();
+      const target = Math.min(w.musicBefore, w.mix.musicWhileSinging / 100);
+      if (Math.abs(w.music.get() - target) > 0.02) await w.music.set(target);
+    } else await restoreMusic(w);
+  } catch {
+    /* el reproductor puede no estar disponible todavía */
+  }
+}
+
+async function restoreMusic(w: Watcher): Promise<void> {
+  if (w.musicBefore === null || !w.music) return;
+  const before = w.musicBefore;
+  w.musicBefore = null;
+  await w.music.set(before);
+}
+
+function renderMixer(music: MusicControl | null): { el: HTMLElement; bind(w: Watcher): void; tick(w: Watcher | null): void } {
+  const mix = loadMix();
+  const voice = h('input', { type: 'range', min: '-12', max: '30', step: '1', value: String(mix.voiceDb), class: 'volume' });
+  const voiceLabel = h('span', { class: 'mix-value' }, fmtDb(mix.voiceDb));
+  const meterFill = h('div', { class: 'level-fill' });
+  const meter = h('div', { class: 'level-meter' }, meterFill);
+  const preset = h('select', { class: 'input' }, h('option', { value: 'SING' }, 'Cantar'), h('option', { value: 'TALK' }, 'Hablar'));
+  preset.value = mix.preset;
+  const processing = h('input', { type: 'checkbox', checked: mix.processing });
+  const duck = h('input', { type: 'range', min: '0', max: '100', step: '5', value: String(mix.musicWhileSinging), class: 'volume' });
+  const duckLabel = h('span', { class: 'mix-value' }, `${mix.musicWhileSinging}%`);
+  const autoDuck = h('input', { type: 'checkbox', checked: mix.autoDuck });
+  let bound: Watcher | null = null;
+  const commit = () => {
+    mix.voiceDb = Number(voice.value);
+    mix.preset = preset.value === 'TALK' ? 'TALK' : 'SING';
+    mix.processing = processing.checked;
+    mix.musicWhileSinging = Number(duck.value);
+    mix.autoDuck = autoDuck.checked;
+    voiceLabel.textContent = fmtDb(mix.voiceDb);
+    duckLabel.textContent = `${mix.musicWhileSinging}%`;
+    saveMix(mix);
+    if (bound) {
+      bound.mix = { ...mix };
+      applyMixToAll(bound);
+      void duckMusic(bound);
+    }
+  };
+  const reset = button('Valores recomendados', () => {
+    Object.assign(mix, DEFAULT_MIX);
+    voice.value = String(mix.voiceDb);
+    preset.value = mix.preset;
+    processing.checked = mix.processing;
+    duck.value = String(mix.musicWhileSinging);
+    autoDuck.checked = mix.autoDuck;
+    commit();
+  }, 'btn btn-sm');
+  for (const el of [voice, preset, processing, duck, autoDuck]) el.addEventListener('input', commit);
+  const el = h(
+    'details',
+    { class: 'karaoke-mix', open: true },
+    h('summary', null, '🎚 Mezcla de voz y música'),
+    h('label', { class: 'field mix-row' }, h('span', null, 'Voz del micrófono'), voice, voiceLabel),
+    h('div', { class: 'row mix-row' }, h('span', { class: 'small muted' }, 'Nivel'), meter),
+    h('label', { class: 'field mix-row' }, h('span', null, 'Ajuste'), preset),
+    h('label', { class: 'field-check small' }, processing, h('span', null, 'Procesar la voz (filtro de graves, ecualizador, compresor y limitador)')),
+    music
+      ? h('label', { class: 'field mix-row' }, h('span', null, 'Música mientras cantan'), duck, duckLabel)
+      : h('p', { class: 'small muted' }, 'Para que la música baje sola mientras cantan, elige el reproductor en la pantalla del anfitrión.'),
+    music ? h('label', { class: 'field-check small' }, autoDuck, h('span', null, 'Bajar la música automáticamente al dar paso a un micrófono')) : null,
+    h('div', { class: 'actions' }, reset),
+  );
+  return {
+    el,
+    bind: (w) => {
+      bound = w;
+      w.mix = { ...mix };
+      applyMixToAll(w);
+    },
+    tick: (w) => {
+      let level = 0;
+      for (const p of w?.playing.values() ?? []) if (p.chain) level = Math.max(level, p.chain.level());
+      meterFill.style.width = `${Math.round(level * 100)}%`;
+    },
+  };
+}
+
+function fmtDb(db: number): string {
+  return `${db > 0 ? '+' : ''}${db} dB`;
 }
 
 function byPriority(a: ParticipantInfo, b: ParticipantInfo): number {

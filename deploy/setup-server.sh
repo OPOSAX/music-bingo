@@ -148,6 +148,18 @@ else
 fi
 docker image prune -f >/dev/null
 
+# 7b. Proxies nginx en Docker conectados a la red de Bingo Hit (p. ej. el de otra app que sirve el dominio):
+# nginx guarda la IP del contenedor al arrancar y, al recrearse el contenedor, la IP cambia (502 en Cloudflare).
+# Se espera a que el sistema responda y se recargan para que resuelvan la IP nueva.
+health_port="$(env_value CONCERT_PORT)"
+for _ in $(seq 1 30); do curl -fsS -m 3 "http://127.0.0.1:${health_port:-3010}/health" >/dev/null 2>&1 && break; sleep 2; done
+for proxy in $(docker network inspect "$(basename "$PWD")_default" --format '{{range .Containers}}{{.Name}} {{end}}' 2>/dev/null); do
+  case "$proxy" in "$(basename "$PWD")"-*) continue ;; esac
+  if docker exec "$proxy" nginx -t >/dev/null 2>&1; then
+    docker exec "$proxy" nginx -s reload && log "Proxy $proxy recargado (nueva IP del contenedor)"
+  fi
+done
+
 # 8. Si hay un nginx o Apache, añadir el sitio: / -> página de presentación, /sistema/ -> sistema (servidor Concert)
 APP_PORT="$(env_value CONCERT_PORT)"
 APP_PORT="${APP_PORT:-3010}"

@@ -471,3 +471,14 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
 .host-qr-text h2 { margin-top: 0; }
 
 .continuous-check { margin-top: 8px; display: flex; align-items: center; gap: 8px; color: var(--muted); }
+
+/* Mezcla de voz y música (panel "Quieren cantar" del anfitrión) */
+.karaoke-mix { margin: 0.75rem 0; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
+.karaoke-mix summary { cursor: pointer; font-weight: 600; }
+.karaoke-mix .mix-row { display: flex; align-items: center; gap: 0.75rem; margin: 0.5rem 0; }
+.karaoke-mix .mix-row > span:first-child { min-width: 11rem; }
+.karaoke-mix .mix-row input[type='range'] { flex: 1; }
+.karaoke-mix .mix-row select { max-width: 12rem; }
+.karaoke-mix .mix-value { min-width: 4.5rem; text-align: right; font-variant-numeric: tabular-nums; }
+.karaoke-mix .level-meter { max-width: 100%; }
+@media (max-width: 600px) { .karaoke-mix .mix-row { flex-wrap: wrap; } .karaoke-mix .mix-row > span:first-child { min-width: 100%; } }

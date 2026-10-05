@@ -133,6 +133,21 @@ export async function renderHost(root: HTMLElement): Promise<void> {
 
   const volume = h('input', { type: 'range', min: '0', max: '100', value: '80', class: 'volume' });
   volume.addEventListener('input', () => browserPlayer?.setVolume(Number(volume.value) / 100));
+  // Volumen de la música para el karaoke: en este navegador por el SDK; en otro dispositivo por la Web API de Spotify.
+  // El valor "deseado" lo lleva el control del anfitrión, así la música vuelve a ese nivel cuando termina el que canta.
+  let musicLevel = Number(volume.value) / 100;
+  volume.addEventListener('input', () => (musicLevel = Number(volume.value) / 100));
+  const musicControl = {
+    get: () => musicLevel,
+    set: async (v: number) => {
+      const level = Math.max(0, Math.min(1, v));
+      if (browserPlayer) await browserPlayer.setVolume(level);
+      else if (snippetPlayer) await api.setVolume(snippetPlayer.deviceId, level * 100);
+      else return;
+      musicLevel = level;
+      volume.value = String(Math.round(level * 100));
+    },
+  };
 
   const browserBtn = button('▶ Usar este navegador', () => void startBrowserPlayer(), 'btn btn-primary');
   const startBrowserPlayer = async () => {
@@ -272,7 +287,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   root.appendChild(gamePanel);
 
   /* ---- Karaoke: quién quiere cantar (misma sala que la partida); autorizar toma su micrófono ---- */
-  if (game.liveServer) root.appendChild(renderKaraokeHostPanel(karaokeEndpoint(game)));
+  if (game.liveServer) root.appendChild(renderKaraokeHostPanel(karaokeEndpoint(game), { music: musicControl }));
   else root.appendChild(h('section', { class: 'panel' }, h('h2', null, '🎤 Quieren cantar'), h('p', { class: 'muted small' }, 'Activa Bingo Hit Live (más abajo) para que los jugadores puedan apuntarse a cantar desde su tarjeta y autorizarlos aquí.')));
   lyricsPanel.el.hidden = game.config.lyrics === false;
   lyricsBtn.hidden = game.config.lyrics === false;

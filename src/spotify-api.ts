@@ -308,6 +308,18 @@ export async function setRepeat(deviceId: string, state: 'track' | 'off'): Promi
   }
 }
 
+/** Volumen (0..100) de un dispositivo de Spotify (altavoz, móvil, ordenador): para bajar la música mientras alguien canta. */
+export async function setVolume(deviceId: string, percent: number): Promise<void> {
+  const value = Math.max(0, Math.min(100, Math.round(percent)));
+  try {
+    await request<void>(`/me/player/volume?volume_percent=${value}&device_id=${encodeURIComponent(deviceId)}`, { method: 'PUT' });
+  } catch (err) {
+    // Algunos dispositivos no admiten control de volumen remoto (403): no es un error real.
+    if (err instanceof SpotifyApiError && (err.status === 403 || err.status === 404)) return;
+    throw err;
+  }
+}
+
 export async function pause(deviceId: string): Promise<void> {
   try {
     await request<void>(`/me/player/pause?device_id=${encodeURIComponent(deviceId)}`, { method: 'PUT' });

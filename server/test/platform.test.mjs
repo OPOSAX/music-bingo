@@ -268,11 +268,18 @@ test('borrar evento: se lleva tarjetas y accesos; en curso o con pagos no se bor
   assert.equal(store.list('cards', (c) => c.eventId === ev.id).length, 0);
   assert.equal(store.list('eventAccess', (a) => a.eventId === ev.id).length, 0);
   assert.equal((await call('GET', '/api/host/events', { token: h.token })).data.length, 0);
-  // Con pagos registrados no se borra
+  // Con pagos registrados se borra igual; la orden pagada y su pago se conservan como registro
   const paid = (await call('POST', '/api/host/events', { token: h.token, body: { name: 'Pagado', eventMode: 'LOCAL', cardDistribution: 'FREE', capacity: 3, game: { tracks, cardSize: 3 } } })).data;
   store.insert('orders', { id: 'order_x', eventId: paid.id, playerId: p.id, quantity: 1, total: 3000, currency: 'CLP', status: 'PAID' });
+  store.insert('payments', { id: 'pay_x', orderId: 'order_x', amount: 3000, status: 'PAID' });
+  store.insert('orders', { id: 'order_y', eventId: paid.id, playerId: p.id, quantity: 1, total: 3000, currency: 'CLP', status: 'PENDING' });
   const kept = await call('DELETE', `/api/host/events/${paid.id}`, { token: h.token });
-  assert.equal(kept.status, 409);
-  assert.equal(kept.data.error, 'has-payments');
+  assert.equal(kept.status, 200);
+  assert.equal(kept.data.ordersKept, 1);
+  assert.equal(kept.data.orders, 1, 'la orden pendiente se elimina');
+  assert.equal(store.get('events', paid.id), null);
+  assert.equal(store.get('orders', 'order_x')?.eventName, 'Pagado');
+  assert.ok(store.get('payments', 'pay_x'));
+  assert.equal(store.get('orders', 'order_y'), null);
   server.close();
 });

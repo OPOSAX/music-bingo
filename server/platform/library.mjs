@@ -13,6 +13,7 @@ import { createReadStream, createWriteStream, existsSync, mkdirSync, renameSync,
 import path from 'node:path';
 
 import { hashToken, identify, newId } from './auth.mjs';
+import { SAMPLE_LISTS } from './sample-lists.mjs';
 import { PlatformError } from './service.mjs';
 
 const now = () => new Date().toISOString();
@@ -35,6 +36,7 @@ export function createLibraryApi(store, options = {}) {
   const maxBytes = options.maxBytes ?? 30 * 1024 * 1024;
   const adminTokenHash = options.adminToken ? hashToken(options.adminToken) : null;
   const log = options.log ?? (() => undefined);
+  const sampleLists = options.sampleLists ?? SAMPLE_LISTS; // las pruebas inyectan listas servidas en local
   mkdirSync(mediaDir, { recursive: true });
 
   const publicSong = (s) => ({ id: s.id, title: s.title, artist: s.artist, album: s.album, durationMs: s.durationMs, size: s.size, ext: s.ext, status: s.status, uploadedBy: s.uploadedBy, uploadedByName: s.uploadedByName, createdAt: s.createdAt });
@@ -239,11 +241,95 @@ export function createLibraryApi(store, options = {}) {
     return { deleted: true, id };
   }
 
+  /* ---------------- Listas de ejemplo (música libre descargada por el servidor) ---------------- */
+
+  const jobs = new Map(); // sampleId → { running, done, total, errors[], startedAt }
+
+  function sampleStatus(a, sample) {
+    const imported = sample.songs.filter((x) => store.find('songs', (s) => s.sourceUrl === x.url && s.status === 'READY')).length;
+    const playlist = store.find('playlists', (p) => p.hostId === a.id && p.sampleId === sample.id);
+    const job = jobs.get(sample.id);
+    return { id: sample.id, name: sample.name, description: sample.description, source: sample.source, total: sample.songs.length, imported, playlistId: playlist?.id ?? null, job: job ? { running: job.running, done: job.done, total: job.total, errors: job.errors } : null };
+  }
+
+  function listSamples(who) {
+    const a = actor(who);
+    return { samples: sampleLists.map((sample) => sampleStatus(a, sample)) };
+  }
+
+  async function downloadTo(url, song) {
+    const res = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(180000) });
+    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status} al descargar`);
+    const tmp = path.join(mediaDir, `${song.id}.download`);
+    const out = createWriteStream(tmp);
+    const sha = createHash('sha256');
+    let size = 0;
+    try {
+      for await (const chunk of res.body) {
+        size += chunk.length;
+        if (size > maxBytes) throw new Error('supera el tamaño máximo');
+        sha.update(chunk);
+        if (!out.write(chunk)) await new Promise((r) => out.once('drain', r));
+      }
+      await new Promise((r) => out.end(r));
+    } catch (err) {
+      out.destroy();
+      if (existsSync(tmp)) unlinkSync(tmp);
+      throw err;
+    }
+    return { tmp, hash: sha.digest('hex'), size };
+  }
+
+  function importSample(who, id) {
+    const a = actor(who);
+    const sample = sampleLists.find((x) => x.id === id);
+    if (!sample) throw new PlatformError(404, 'sample', 'Lista de ejemplo no encontrada');
+    const existing = jobs.get(id);
+    if (existing?.running) return sampleStatus(a, sample);
+    const job = { running: true, done: 0, total: sample.songs.length, errors: [], startedAt: now() };
+    jobs.set(id, job);
+    (async () => {
+      const songIds = [];
+      for (const item of sample.songs) {
+        try {
+          let song = store.find('songs', (s) => s.sourceUrl === item.url && s.status === 'READY');
+          if (!song) {
+            const draft = { id: newId('song'), ext: 'mp3', title: item.title, artist: item.artist, album: item.album, durationMs: item.durationMs, sourceUrl: item.url, status: 'PENDING', uploadedBy: a.id, uploadedByName: a.name, createdAt: now() };
+            const { tmp, hash, size } = await downloadTo(item.url, draft);
+            const dup = store.find('songs', (s) => s.hash === hash && s.status === 'READY');
+            if (dup) {
+              unlinkSync(tmp);
+              song = store.update('songs', dup.id, { sourceUrl: dup.sourceUrl ?? item.url });
+            } else {
+              renameSync(tmp, path.join(mediaDir, `${draft.id}.mp3`));
+              song = store.insert('songs', { ...draft, hash, size, status: 'READY' });
+              log(`Lista de ejemplo: descargada "${item.title}" (${Math.round(size / 1024)} KB)`);
+            }
+          }
+          songIds.push(song.id);
+        } catch (err) {
+          job.errors.push(`${item.title}: ${err.message}`);
+        }
+        job.done++;
+      }
+      const playlist = store.find('playlists', (p) => p.hostId === a.id && p.sampleId === sample.id);
+      if (playlist) store.update('playlists', playlist.id, { songIds: validSongIds(songIds), updatedAt: now() });
+      else if (songIds.length) store.insert('playlists', { id: newId('pl'), hostId: a.id, name: sample.name, sampleId: sample.id, songIds: validSongIds(songIds), createdAt: now(), updatedAt: now() });
+      store.audit(a.id, 'sample.import', { sampleId: sample.id, songs: songIds.length, errors: job.errors.length });
+    })()
+      .catch((err) => job.errors.push(err.message))
+      .finally(() => {
+        job.running = false;
+      });
+    return sampleStatus(a, sample);
+  }
+
   /* ---------------- Enrutado ---------------- */
 
   const SONG_FILE = /^\/api\/library\/songs\/([^/]+)\/file$/;
   const SONG = /^\/api\/library\/songs\/([^/]+)$/;
   const PLAYLIST = /^\/api\/library\/playlists\/([^/]+)$/;
+  const SAMPLE_IMPORT = /^\/api\/library\/samples\/([^/]+)\/import$/;
 
   async function readJson(req) {
     const chunks = [];
@@ -287,6 +373,10 @@ export function createLibraryApi(store, options = {}) {
         const id = decodeURIComponent(m[1]);
         if (req.method === 'PATCH') return send(res, 200, updateSong(who, id, await readJson(req))), true;
         if (req.method === 'DELETE') return send(res, 200, deleteSong(who, id)), true;
+      } else if (p === '/api/library/samples' && req.method === 'GET') {
+        return send(res, 200, listSamples(who)), true;
+      } else if ((m = p.match(SAMPLE_IMPORT)) && req.method === 'POST') {
+        return send(res, 200, importSample(who, decodeURIComponent(m[1]))), true;
       } else if (p === '/api/library/playlists') {
         if (req.method === 'GET') return send(res, 200, { playlists: listPlaylists(who) }), true;
         if (req.method === 'POST') return send(res, 200, createPlaylist(who, await readJson(req))), true;

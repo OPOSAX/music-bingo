@@ -17,7 +17,7 @@ import { loadToken, saveToken } from '../concert/store.js';
 import type { ConcertEndpoint } from '../concert/session.js';
 import { djPanelUrl } from '../concert/views/karaoke-host-panel.js';
 import { liveLinkOf, renderLiveHostPanel } from '../live/views/host-panel.js';
-import { renderBroadcastPanel, startBroadcast } from '../live/views/broadcast-panel.js';
+import { broadcasting, renderBroadcastPanel, startBroadcast } from '../live/views/broadcast-panel.js';
 import { liveRoomId } from '../live/protocol.js';
 import { detectLiveServer } from '../concert/session.js';
 import { renderKaraokeHostPanel } from '../concert/views/karaoke-host-panel.js';
@@ -447,7 +447,9 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     toast(`${msg.name} se ha unido con la tarjeta ${msg.index + 1}`, 'success');
     persist();
   }, undefined, liveLinkOf(game), loadToken());
-  window.addEventListener('hashchange', () => { claimSubscription?.close(); claimSubscription = null; releaseLiveSessions(); }, { once: true });
+  // Al salir de la pantalla se cierran las sesiones Live, salvo que se esté transmitiendo: la transmisión y las
+  // peticiones de tarjeta siguen vivas hasta pulsar "Detener" (el aviso fijo permite volver aquí).
+  window.addEventListener('hashchange', () => { if (broadcasting()) return; claimSubscription?.close(); claimSubscription = null; releaseLiveSessions(); }, { once: true });
 
   let publishTimer: number | null = null;
   function publish(): void {

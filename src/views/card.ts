@@ -9,6 +9,7 @@ import { loadMarks, playerId, saveMarks } from '../store.js';
 import { autoMarkedCells, subscribeState, type LiveLink, type SyncState } from '../sync.js';
 import { LIVE_EVENTS } from '../live/protocol.js';
 import { liveSession, releaseLiveSessions, type LiveSession } from '../live/session.js';
+import { broadcasting } from '../live/views/broadcast-panel.js';
 import { createLiveHostVideo, type LiveHostVideo } from '../live/views/live-video.js';
 import { liveRoomId } from '../live/protocol.js';
 import { createKaraokePanel } from '../concert/views/sing.js';
@@ -27,7 +28,8 @@ export function releaseCardSync(): void {
   lyricsPanel = null;
   liveVideo?.destroy();
   liveVideo = null;
-  releaseLiveSessions();
+  // Las sesiones Live del anfitrión que transmite no se tocan (el jugador y el anfitrión comparten este registro).
+  if (!broadcasting()) releaseLiveSessions();
 }
 
 export async function renderPlayerCard(root: HTMLElement, params: URLSearchParams): Promise<void> {

@@ -35,8 +35,18 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
   const status = h('p', { class: 'small muted' }, '⚪ Sin transmitir');
   const listeners = h('span', { class: 'badge' }, '👥 0');
   const micSel = h('select', { class: 'input' }, h('option', { value: '' }, 'Micrófono por defecto'));
-  const musicSel = h('select', { class: 'input' }, h('option', { value: 'none' }, 'Sin música (solo voz)'), h('option', { value: 'device' }, 'Entrada de audio (mezclador / loopback)'), h('option', { value: 'tab' }, 'Audio de esta pestaña (Spotify en este navegador)'));
-  musicSel.value = settings.musicSource;
+  const fromLibrary = game.source === 'library';
+  const musicSel = h(
+    'select',
+    { class: 'input' },
+    fromLibrary ? h('option', { value: 'local' }, 'Biblioteca propia (la música de esta partida)') : null,
+    h('option', { value: 'none' }, 'Sin música (solo voz)'),
+    h('option', { value: 'device' }, 'Entrada de audio (mezclador / loopback)'),
+    h('option', { value: 'tab' }, 'Audio de esta pestaña (Spotify en este navegador)'),
+  );
+  // Con biblioteca propia la música entra directa; si la partida es de Spotify, 'local' no está disponible.
+  musicSel.value = fromLibrary && (settings.musicSource === 'local' || settings.musicSource === 'none') ? 'local' : settings.musicSource === 'local' ? 'none' : settings.musicSource;
+  settings.musicSource = musicSel.value as MusicSource;
   const musicDev = h('select', { class: 'input' }, h('option', { value: '' }, 'Entrada por defecto'));
   const micDb = h('input', { type: 'range', min: '-12', max: '24', step: '1', value: String(settings.micDb), class: 'volume' });
   const micDbLabel = h('span', { class: 'mix-value' }, fmtDb(settings.micDb));

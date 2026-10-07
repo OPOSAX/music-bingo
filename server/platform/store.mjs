@@ -7,7 +7,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 
-export const COLLECTIONS = ['users', 'events', 'players', 'cards', 'orders', 'payments', 'eventAccess', 'promotions', 'webhookLog', 'audit', 'sessions'];
+export const COLLECTIONS = ['users', 'events', 'players', 'cards', 'orders', 'payments', 'eventAccess', 'promotions', 'webhookLog', 'audit', 'sessions', 'songs', 'playlists'];
 
 /** Migraciones: cada entrada lleva el fichero de la versión n a la n+1. */
 export const MIGRATIONS = [
@@ -24,6 +24,12 @@ export const MIGRATIONS = [
       u.username ??= (u.email || u.name || u.id).toLowerCase().replace(/[^a-z0-9._-]+/g, '.').replace(/^\.+|\.+$/g, '') || u.id;
       u.passwordHash ??= null;
     }
+    return db;
+  },
+  // 2 → 3: biblioteca propia (canciones subidas, compartidas) y listas por animador
+  (db) => {
+    db.songs ??= [];
+    db.playlists ??= [];
     return db;
   },
 ];

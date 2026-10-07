@@ -10,11 +10,12 @@ import { navigate } from '../router.js';
 import * as api from '../spotify-api.js';
 import { createGame, loadGame, saveGame } from '../store.js';
 import * as auth from '../auth.js';
-import { hostApi, resolveServer, type HostEvent } from '../platform/api.js';
+import { hostApi, resolveServer, tokens, type HostEvent } from '../platform/api.js';
 import { renderSpotifyPanel } from './home.js';
+import { libraryApi, songToTrack, type Playlist } from '../library/api.js';
 
 interface Source {
-  kind: 'playlist' | 'saved' | 'generated';
+  kind: 'playlist' | 'saved' | 'generated' | 'library';
   id: string;
   name: string;
   trackCount: number | null;
@@ -45,7 +46,27 @@ export async function renderSetup(root: HTMLElement, params: URLSearchParams = n
     button(event ? '← Mis eventos' : '← Inicio', () => navigate(event ? '/events' : '/'), 'btn btn-link'),
   );
   root.appendChild(header);
-  if (!auth.isLoggedIn() || !auth.getClientId()) {
+
+  /* ---- Fuente de la música: Spotify o la biblioteca propia (archivos subidos) ---- */
+  const MUSIC_SOURCE_KEY = 'musicbingo:musicSource';
+  let libraryLists: Playlist[] = [];
+  try {
+    if (tokens.host() || tokens.admin()) libraryLists = (await libraryApi.playlists()).playlists;
+  } catch {
+    libraryLists = [];
+  }
+  const savedSource = localStorage.getItem(MUSIC_SOURCE_KEY);
+  const useLibrary = savedSource ? savedSource === 'library' : libraryLists.length > 0 && !auth.isLoggedIn();
+  const sourceBtn = (label: string, lib: boolean) => button(label, () => { localStorage.setItem(MUSIC_SOURCE_KEY, lib ? 'library' : 'spotify'); void renderSetup(root, params); }, `btn btn-sm ${useLibrary === lib ? 'btn-primary' : ''}`);
+  root.appendChild(
+    h(
+      'section',
+      { class: 'panel' },
+      h('div', { class: 'row space' }, h('h2', null, 'Fuente de la música'), h('div', { class: 'actions' }, sourceBtn('🎵 Mi biblioteca', true), sourceBtn('Spotify', false))),
+      h('p', { class: 'small muted' }, useLibrary ? 'Canciones subidas a la biblioteca: suenan en este navegador sin Spotify y entran directas en la transmisión a los jugadores.' : 'Listas de Spotify (necesita una cuenta Premium que suene en el evento).'),
+    ),
+  );
+  if (!useLibrary && (!auth.isLoggedIn() || !auth.getClientId())) {
     root.appendChild(h('p', { class: 'alert alert-warn' }, 'Para elegir la música conecta la cuenta de Spotify Premium que sonará en el evento. Al volver seguirás aquí.'));
     await renderSpotifyPanel(root);
     return;
@@ -140,18 +161,40 @@ export async function renderSetup(root: HTMLElement, params: URLSearchParams = n
     }
   }
 
-  const step1 = h(
-    'section',
-    { class: 'panel' },
-    h('h2', null, '1. Elige la lista de canciones'),
-    selectedLabel,
-    generator,
-    h('p', { class: 'muted small' }, 'O pega una URL de lista:'),
-    urlForm,
-    h('p', { class: 'muted small' }, 'O elige una de tus listas:'),
-    playlistGrid,
-  );
+  const step1 = useLibrary
+    ? h(
+        'section',
+        { class: 'panel' },
+        h('div', { class: 'row space' }, h('h2', null, '1. Elige una lista de tu biblioteca'), button('Gestionar biblioteca', () => navigate('/biblioteca'), 'btn btn-sm')),
+        selectedLabel,
+        playlistGrid,
+      )
+    : h(
+        'section',
+        { class: 'panel' },
+        h('h2', null, '1. Elige la lista de canciones'),
+        selectedLabel,
+        generator,
+        h('p', { class: 'muted small' }, 'O pega una URL de lista:'),
+        urlForm,
+        h('p', { class: 'muted small' }, 'O elige una de tus listas:'),
+        playlistGrid,
+      );
   root.appendChild(step1);
+  if (useLibrary) {
+    clear(playlistGrid);
+    if (!libraryLists.length) playlistGrid.appendChild(h('p', { class: 'muted' }, 'Todavía no tienes listas. Crea una en "Gestionar biblioteca" y añade canciones.'));
+    for (const p of libraryLists) {
+      playlistGrid.appendChild(
+        h(
+          'button',
+          { class: 'playlist-item', type: 'button', dataset: { id: p.id }, onClick: () => select({ kind: 'library', id: p.id, name: p.name, trackCount: p.songs.length, tracks: p.songs.map(songToTrack) }) },
+          h('div', { class: 'playlist-cover placeholder' }, '♪'),
+          h('div', { class: 'playlist-meta' }, h('strong', null, p.name), h('span', { class: 'muted small' }, `${p.songs.length} canciones · biblioteca propia`)),
+        ),
+      );
+    }
+  }
 
   const select = (source: Source) => {
     selected = source;
@@ -180,7 +223,7 @@ export async function renderSetup(root: HTMLElement, params: URLSearchParams = n
     }
   });
 
-  Promise.all([api.getMyPlaylists(), api.getMe().catch(() => null)])
+  if (!useLibrary) Promise.all([api.getMyPlaylists(), api.getMe().catch(() => null)])
     .then(([all, me]) => {
       // Spotify (modo desarrollo) solo deja leer listas propias o colaborativas: las demás se muestran al final, marcadas.
       const usable = (p: api.PlaylistSummary) => !me || p.ownerId === me.id || p.collaborative;
@@ -263,7 +306,7 @@ export async function renderSetup(root: HTMLElement, params: URLSearchParams = n
       const onProgress = (loaded: number, total: number) => {
         status.textContent = `Cargando canciones… ${loaded}/${total}`;
       };
-      const tracks: Track[] = selected.kind === 'generated' ? (selected.tracks ?? []) : selected.kind === 'saved' ? await api.getSavedTracks(onProgress) : await api.getPlaylistTracks(selected.id, onProgress);
+      const tracks: Track[] = selected.kind === 'generated' || selected.kind === 'library' ? (selected.tracks ?? []) : selected.kind === 'saved' ? await api.getSavedTracks(onProgress) : await api.getPlaylistTracks(selected.id, onProgress);
       const config: GameConfig = {
         seed: randomCode(6),
         gridSize: Number(gridSelect.value) as GridSize,
@@ -282,6 +325,7 @@ export async function renderSetup(root: HTMLElement, params: URLSearchParams = n
         return;
       }
       const game = createGame(config, selected.name, tracks);
+      game.source = selected.kind === 'library' ? 'library' : 'spotify';
       if (event) {
         game.eventId = event.id;
         status.textContent = 'Guardando la música en el evento…';

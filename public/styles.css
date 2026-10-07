@@ -512,3 +512,24 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
 .broadcast-panel .mix-row select { flex: 1; min-width: 0; }
 .broadcast-panel .mix-value { min-width: 4.5rem; text-align: right; font-variant-numeric: tabular-nums; }
 .broadcast-panel .level-meter { max-width: 100%; }
+
+/* Mi biblioteca */
+.drop-zone { border: 2px dashed #4a4a4a; border-radius: var(--radius); padding: 20px; text-align: center; transition: border-color 0.15s, background 0.15s; }
+.drop-zone.over { border-color: var(--accent); background: rgba(29, 185, 84, 0.08); }
+.upload-list { list-style: none; padding: 0; margin: 10px 0 0; }
+.upload-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid #2a2a2a; font-size: 0.95rem; }
+.upload-row.done .upload-state { color: var(--accent); }
+.upload-row.failed .upload-state { color: var(--danger); }
+.upload-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.playlist-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.playlist-current { background: var(--panel-2); border-radius: var(--radius); padding: 12px; margin-top: 10px; }
+.playlist-songs { padding-left: 1.4rem; margin: 8px 0; max-height: 50vh; overflow: auto; }
+.playlist-song { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #2a2a2a; }
+.song-list { margin-top: 10px; max-height: 60vh; overflow: auto; }
+.song-row { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-bottom: 1px solid #2a2a2a; }
+.song-row.in-list { background: rgba(29, 185, 84, 0.08); }
+.song-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.song-meta strong, .song-meta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn-icon { padding: 4px 8px; min-width: 2.2em; }
+@media (max-width: 600px) { .song-row { flex-wrap: wrap; } .song-row .actions { width: 100%; justify-content: flex-end; } }
+.mix-row[hidden] { display: none !important; }

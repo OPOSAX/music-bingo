@@ -76,6 +76,8 @@ services:
       PLATFORM_ADMIN_USER: ${PLATFORM_ADMIN_USER:-admin}
       PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}
       PLATFORM_DATA_FILE: /srv/server/data/platform.json
+      # Biblioteca propia: tamaño máximo por canción (MB); los archivos van en el volumen de datos (data/media).
+      MAX_SONG_MB: ${MAX_SONG_MB:-30}
       PUBLIC_URL: ${PUBLIC_URL:-}
       PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
       MOCK_PAYMENT_SECRET: ${MOCK_PAYMENT_SECRET:-}

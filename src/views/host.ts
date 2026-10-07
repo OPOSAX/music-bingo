@@ -6,6 +6,7 @@ import { button, clear, copyText, errorMessage, formatDuration, h, toast } from 
 import { encodeText, toSvgElement } from '../qr.js';
 import { joinUrl } from './deal.js';
 import { SnippetPlayer, createBrowserPlayer, snippetStart } from '../player.js';
+import { LocalSnippetPlayer, localPlayer } from '../local-player.js';
 import { navigate } from '../router.js';
 import * as api from '../spotify-api.js';
 import type { GameState } from '../store.js';
@@ -25,7 +26,7 @@ import { LIVE_EVENTS, type BingoClaimed, type GameConfigMessage } from '../live/
 import { liveSession, releaseLiveSessions } from '../live/session.js';
 import { createLyricsPanel, lyricsToggle } from './lyrics-panel.js';
 
-let snippetPlayer: SnippetPlayer | null = null;
+let snippetPlayer: SnippetPlayer | LocalSnippetPlayer | null = null;
 let browserPlayer: Spotify.Player | null = null;
 let claimSubscription: Subscription | null = null;
 
@@ -153,7 +154,8 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     get: () => musicLevel,
     set: async (v: number) => {
       const level = Math.max(0, Math.min(1, v));
-      if (browserPlayer) await browserPlayer.setVolume(level);
+      if (snippetPlayer instanceof LocalSnippetPlayer) snippetPlayer.volume = level;
+      else if (browserPlayer) await browserPlayer.setVolume(level);
       else if (snippetPlayer) await api.setVolume(snippetPlayer.deviceId, level * 100);
       else return;
       musicLevel = level;
@@ -257,14 +259,25 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   const mobile = isMobileBrowser();
   const openSpotifyBtn = button('🎧 Abrir Spotify', openSpotify, 'btn btn-primary');
   const searchBtn = button(mobile ? '🔄 Buscar dispositivos' : 'Otros dispositivos…', () => { showDeviceUi(true); void refreshDevices(); }, mobile ? 'btn btn-primary' : 'btn');
-  if (snippetPlayer && browserPlayer) {
+  const fromLibrary = game.source === 'library';
+  if (fromLibrary) {
+    // Biblioteca propia: suena en este navegador, sin Spotify ni dispositivos.
+    const local = localPlayer();
+    snippetPlayer = local;
+    deviceName = 'biblioteca propia';
+    volume.value = String(Math.round(local.volume * 100));
+    volume.addEventListener('input', () => (local.volume = Number(volume.value) / 100));
+    deviceStatus.textContent = '🎵 Biblioteca propia: la música suena en este navegador y entra directa en la transmisión a los jugadores.';
+    deviceStatus.className = 'ok';
+    deviceList.appendChild(h('label', { class: 'field' }, h('span', null, 'Volumen'), volume));
+  } else if (snippetPlayer && browserPlayer) {
     setDevice(snippetPlayer.deviceId, 'este navegador');
     deviceList.appendChild(h('label', { class: 'field' }, h('span', null, 'Volumen'), volume));
   } else if (!mobile) {
     deviceList.appendChild(browserBtn);
   }
-  if (mobile) deviceList.appendChild(openSpotifyBtn);
-  deviceList.appendChild(searchBtn);
+  if (mobile && !fromLibrary) deviceList.appendChild(openSpotifyBtn);
+  if (!fromLibrary) deviceList.appendChild(searchBtn);
   playerPanel.appendChild(deviceHint);
   playerPanel.appendChild(
     h(
@@ -273,14 +286,15 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       h('label', { class: 'field' }, h('span', null, 'Cada canción empieza'), startModeSelect),
     ),
   );
-  if (mobile) {
+  if (mobile && !fromLibrary) {
     deviceHint.textContent = 'La música suena a través de la app de Spotify. Pulsa "Abrir Spotify", dale a reproducir cualquier canción y vuelve: el teléfono se detecta solo. Con la reproducción continua activada, Spotify no se pausa y el dispositivo no se pierde.';
     if (!snippetPlayer) startAutoDetect();
   }
   showDeviceUi(!snippetPlayer);
+  if (fromLibrary) showDeviceUi(false);
   // Al volver a la pestaña (por ejemplo desde Spotify), volver a buscar el dispositivo si falta.
   const onVisible = () => {
-    if (document.visibilityState === 'visible' && !snippetPlayer && location.hash.startsWith('#/host')) startAutoDetect(60);
+    if (document.visibilityState === 'visible' && !snippetPlayer && !fromLibrary && location.hash.startsWith('#/host')) startAutoDetect(60);
   };
   document.addEventListener('visibilitychange', onVisible);
   window.addEventListener('hashchange', () => { document.removeEventListener('visibilitychange', onVisible); stopAutoDetect(); }, { once: true });

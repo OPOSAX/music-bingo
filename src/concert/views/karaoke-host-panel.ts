@@ -318,7 +318,7 @@ function renderMixer(music: MusicControl | null): { el: HTMLElement; bind(w: Wat
   for (const el of [voice, preset, processing, duck, autoDuck]) el.addEventListener('input', commit);
   const el = h(
     'details',
-    { class: 'karaoke-mix', open: true },
+    { class: 'karaoke-mix' },
     h('summary', null, '🎚 Mezcla de voz y música'),
     h('label', { class: 'field mix-row' }, h('span', null, 'Voz del micrófono'), voice, voiceLabel),
     h('div', { class: 'row mix-row' }, h('span', { class: 'small muted' }, 'Nivel'), meter),

@@ -65,11 +65,20 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     ),
   );
 
+  /* ---- Disposición en dos columnas (en pantallas anchas): la partida a la izquierda; QR, clasificación y karaoke a la
+   * derecha; los ajustes que solo se tocan al principio quedan plegados abajo. Así se conduce sin desplazar la página. ---- */
+  const mainCol = h('div', { class: 'host-col host-col-main' });
+  const side = h('div', { class: 'host-col host-col-side' });
+  root.classList.add('host-layout');
+  root.appendChild(h('div', { class: 'host-grid' }, mainCol, side));
+  const settings = h('details', { class: 'panel host-settings' }, h('summary', null, '⚙️ Ajustes de la partida (tarjetas escaneadas, mensajes, Bingo Hit Live)'));
+  root.appendChild(settings);
+
   /* ---- QR de acceso: siempre a la vista; "en grande" abre otra pestaña para no cortar la música ---- */
   const qrBox = h('div', { class: 'host-qr' }, h('p', { class: 'muted small' }, 'Generando QR…'));
   const qrLink = h('a', { class: 'deal-link small', href: '#', target: '_blank', rel: 'noopener' }, 'Enlace de la partida');
   let joinLink = '';
-  root.appendChild(
+  side.appendChild(
     h(
       'section',
       { class: 'panel host-qr-panel' },
@@ -102,7 +111,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   const deviceStatus = h('p', { class: 'muted' }, 'Sin dispositivo de reproducción.');
   const deviceList = h('div', { class: 'device-list' });
   const playerPanel = h('section', { class: 'panel' }, h('h2', null, 'Reproductor'), deviceStatus, deviceList);
-  root.appendChild(playerPanel);
+  mainCol.appendChild(playerPanel);
 
   const setDevice = (id: string, name: string) => {
     snippetPlayer = new SnippetPlayer(id);
@@ -284,11 +293,12 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     h('label', { class: 'field-check small continuous-check' }, continuousCheck, h('span', null, `Seguir la canción hasta el final (sin marcar se corta a los ${game.config.snippetSeconds} s)`)),
     lyricsPanel.el,
   );
-  root.appendChild(gamePanel);
+  mainCol.appendChild(gamePanel);
 
   /* ---- Karaoke: quién quiere cantar (misma sala que la partida); autorizar toma su micrófono ---- */
-  if (game.liveServer) root.appendChild(renderKaraokeHostPanel(karaokeEndpoint(game), { music: musicControl }));
-  else root.appendChild(h('section', { class: 'panel' }, h('h2', null, '🎤 Quieren cantar'), h('p', { class: 'muted small' }, 'Activa Bingo Hit Live (más abajo) para que los jugadores puedan apuntarse a cantar desde su tarjeta y autorizarlos aquí.')));
+  const karaokeSlot = h('div'); // se monta tras la clasificación: durante la partida la clasificación importa más
+  if (game.liveServer) karaokeSlot.appendChild(renderKaraokeHostPanel(karaokeEndpoint(game), { music: musicControl }));
+  else karaokeSlot.appendChild(h('section', { class: 'panel' }, h('h2', null, '🎤 Quieren cantar'), h('p', { class: 'muted small' }, 'Activa Bingo Hit Live (más abajo) para que los jugadores puedan apuntarse a cantar desde su tarjeta y autorizarlos aquí.')));
   lyricsPanel.el.hidden = game.config.lyrics === false;
   lyricsBtn.hidden = game.config.lyrics === false;
 
@@ -297,6 +307,16 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   const board = h('div', { class: 'leaderboard' });
   let showAll = false;
   const showAllBtn = button('Ver todas las tarjetas', () => { showAll = !showAll; renderWinners(); }, 'btn btn-sm');
+  type RankOrder = 'progress' | 'name' | 'index';
+  const RANK_ORDER_KEY = 'musicbingo:rankOrder';
+  let rankOrder = (localStorage.getItem(RANK_ORDER_KEY) as RankOrder | null) ?? 'progress';
+  const orderSelect = h('select', { class: 'input input-sm' }, h('option', { value: 'progress' }, 'Por avance'), h('option', { value: 'name' }, 'Por nombre'), h('option', { value: 'index' }, 'Por número de tarjeta'));
+  orderSelect.value = rankOrder;
+  orderSelect.addEventListener('change', () => {
+    rankOrder = orderSelect.value as RankOrder;
+    localStorage.setItem(RANK_ORDER_KEY, rankOrder);
+    renderWinners();
+  });
   const verifyInput = h('input', { class: 'input', type: 'number', min: '1', max: String(cards.length), placeholder: 'Nº de tarjeta' });
   const verifyResult = h('div', { class: 'verify-result' });
   const verifyForm = h('form', { class: 'row' }, verifyInput, h('button', { class: 'btn', type: 'submit' }, 'Comprobar'));
@@ -304,12 +324,12 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     ev.preventDefault();
     verify(Number(verifyInput.value) - 1);
   });
-  root.appendChild(
+  side.appendChild(
     h(
       'section',
       { class: 'panel' },
-      h('div', { class: 'row space' }, h('h2', null, 'Clasificación'), showAllBtn),
-      h('p', { class: 'muted small' }, 'Según las canciones que han sonado, no según lo que marque cada jugador. Toca una fila para ponerle nombre.'),
+      h('div', { class: 'row space' }, h('h2', null, 'Clasificación'), h('div', { class: 'actions' }, orderSelect, showAllBtn)),
+      h('p', { class: 'muted small' }, 'Según las canciones que han sonado, no según lo que marque cada jugador. El nombre aparece cuando el jugador escanea el QR; toca una fila para cambiarlo.'),
       winners,
       board,
       h('h3', null, 'Comprobar una tarjeta'),
@@ -317,6 +337,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       verifyResult,
     ),
   );
+  side.appendChild(karaokeSlot);
 
   /* ---- Sincronización con las tarjetas ---- */
   if (!game.syncTopic) {
@@ -346,7 +367,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     game.config.autoMark = autoMarkSelect.value as AutoMark;
     persist();
   });
-  root.appendChild(
+  settings.appendChild(
     h(
       'section',
       { class: 'panel' },
@@ -391,6 +412,8 @@ export async function renderHost(root: HTMLElement): Promise<void> {
 
   /** Atiende las peticiones de tarjeta de los jugadores que escanean el QR único. */
   claimSubscription?.close();
+  // Con servidor Live las peticiones llegan por Socket.IO (y ntfy sigue para quien se unió sin servidor): sin el enlace Live
+  // el anfitrión nunca recibía los nombres de los jugadores que escaneaban el QR.
   claimSubscription = subscribeTopic(game.syncTopic as string, (msg) => {
     if (msg.k === 'state' || msg.k === 'pool') return;
     if (msg.k !== 'claim' || msg.seed !== game.config.seed) return;
@@ -406,7 +429,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     setCardName(game, msg.index, msg.name);
     toast(`${msg.name} se ha unido con la tarjeta ${msg.index + 1}`, 'success');
     persist();
-  });
+  }, undefined, liveLinkOf(game), loadToken());
   window.addEventListener('hashchange', () => { claimSubscription?.close(); claimSubscription = null; releaseLiveSessions(); }, { once: true });
 
   let publishTimer: number | null = null;
@@ -425,7 +448,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
   /* ---- Bingo Hit Live ---- */
   const bingoClaims = h('ul', { class: 'feed-list bingo-claims' });
   bingoClaims.hidden = true;
-  root.appendChild(
+  settings.appendChild(
     renderLiveHostPanel(game, (activated) => {
       persist();
       claimSubscription?.close();
@@ -438,7 +461,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       void renderHost(root);
     }),
   );
-  root.appendChild(h('section', { class: 'panel', hidden: !game.liveServer }, h('h2', null, 'Bingos cantados en directo'), bingoClaims));
+  side.appendChild(h('section', { class: 'panel', hidden: !game.liveServer }, h('h2', null, 'Bingos cantados en directo'), bingoClaims));
   function listenBingos(): void {
     const live = liveLinkOf(game);
     if (!live) return;
@@ -465,7 +488,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
 
   /* ---- Historial ---- */
   const history = h('ol', { class: 'history' });
-  root.appendChild(h('section', { class: 'panel' }, h('h2', null, 'Canciones cantadas'), history));
+  mainCol.appendChild(h('section', { class: 'panel' }, h('h2', null, 'Canciones cantadas'), history));
 
   root.appendChild(h('section', { class: 'panel muted-panel' }, h('div', { class: 'actions' }, undoBtn, button('Terminar partida', () => navigate('/'), 'btn btn-link'))));
 
@@ -516,9 +539,16 @@ export async function renderHost(root: HTMLElement): Promise<void> {
     clear(board);
     const called = calledSet(game);
     const statusRank: Record<string, number> = { full: 0, line: 1, none: 2 };
-    const rows = cards
-      .map((card) => ({ card, ev: evaluateCard(card, called) }))
-      .sort((a, b) => statusRank[a.ev.status]! - statusRank[b.ev.status]! || a.ev.remaining - b.ev.remaining || b.ev.completedLines.length - a.ev.completedLines.length || a.card.index - b.card.index);
+    const nameOf = (index: number) => cardName(game, index);
+    const byProgress = (a: { card: Card; ev: ReturnType<typeof evaluateCard> }, b: { card: Card; ev: ReturnType<typeof evaluateCard> }) =>
+      statusRank[a.ev.status]! - statusRank[b.ev.status]! || a.ev.remaining - b.ev.remaining || b.ev.completedLines.length - a.ev.completedLines.length;
+    // A igual avance, primero las tarjetas con jugador (las que nadie ha escaneado no juegan) y luego por número.
+    const byPlayer = (a: { card: Card }, b: { card: Card }) => Number(!nameOf(a.card.index)) - Number(!nameOf(b.card.index)) || a.card.index - b.card.index;
+    const byName = (a: { card: Card }, b: { card: Card }) => (nameOf(a.card.index) || '￿').localeCompare(nameOf(b.card.index) || '￿', 'es', { sensitivity: 'base' }) || a.card.index - b.card.index;
+    const rows = cards.map((card) => ({ card, ev: evaluateCard(card, called) }));
+    if (rankOrder === 'name') rows.sort(byName);
+    else if (rankOrder === 'index') rows.sort((a, b) => a.card.index - b.card.index);
+    else rows.sort((a, b) => byProgress(a, b) || byPlayer(a, b));
 
     const full = rows.filter((r) => r.ev.status === 'full').map((r) => cardTitle(game, r.card.index));
     const line = rows.filter((r) => r.ev.status === 'line').map((r) => cardTitle(game, r.card.index));

@@ -27,6 +27,7 @@ import { assertCanConsume, attachConcertHandlers } from '../public/js/concert/se
 import { attachLiveHandlers, iceServersFromEnv, liveSummary } from './live.mjs';
 import { hashToken, identify } from './platform/auth.mjs';
 import { createPlatformApi } from './platform/api.mjs';
+import { createLibraryApi } from './platform/library.mjs';
 import { PlatformService } from './platform/service.mjs';
 import { Store } from './platform/store.mjs';
 
@@ -160,10 +161,15 @@ export async function startServer(options = {}) {
     app.get('/live/config', (_req, res) => {
         res.json({ live: true, iceServers: iceServersFromEnv(env), maxViewersHint: Number(env.LIVE_MAX_VIEWERS) || 5000 });
     });
+    // Biblioteca propia: archivos en MEDIA_DIR (junto al almacén de la plataforma, dentro del volumen de datos).
+    const mediaDir = env.MEDIA_DIR ? path.resolve(env.MEDIA_DIR) : path.join(dataFile ? path.dirname(dataFile) : path.join(here, 'data'), 'media');
+    const libraryApi = createLibraryApi(store, { mediaDir, maxBytes: (Number(env.MAX_SONG_MB) || 30) * 1024 * 1024, adminToken: platformAdminToken, log: (m) => log.info(m) });
     app.use((req, res, next) => {
-        platformApi(req, res).then((handled) => {
-            if (!handled) next();
-        }, next);
+        libraryApi(req, res)
+            .then((handled) => (handled ? undefined : platformApi(req, res)))
+            .then((handled) => {
+                if (handled === false) next();
+            }, next);
     });
     app.use('/sfu', express.static(path.join(here, 'public', 'sfu'), { maxAge: '1d' }));
     if (existsSync(staticDir)) {

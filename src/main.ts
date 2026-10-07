@@ -21,6 +21,7 @@ import { renderPay } from './platform/views/pay.js';
 import { renderHostEvents } from './platform/views/host-events.js';
 import { renderAdmin } from './platform/views/admin.js';
 import { renderLogin } from './platform/views/login.js';
+import { renderLibrary } from './library/views/library.js';
 
 const root = document.getElementById('app') as HTMLElement;
 
@@ -81,6 +82,9 @@ async function render(route: Route): Promise<void> {
         break;
       case '/pay':
         await renderPay(root, route.params);
+        break;
+      case '/biblioteca':
+        await renderLibrary(root, route.params);
         break;
       case '/events':
         await renderHostEvents(root, route.params);

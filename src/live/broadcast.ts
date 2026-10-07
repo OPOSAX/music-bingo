@@ -14,8 +14,10 @@
 import { getSharedAudioContext } from '../concert/audio/shared-context.js';
 import { VoiceChain } from '../concert/audio/voice-chain.js';
 import { addKaraokeTap, removeKaraokeTap } from '../concert/views/karaoke-host-panel.js';
+import { localPlayer } from '../local-player.js';
 
-export type MusicSource = 'none' | 'tab' | 'device';
+/** 'local': el reproductor de la biblioteca propia (sin captura ni loopback: la señal entra directa). */
+export type MusicSource = 'none' | 'tab' | 'device' | 'local';
 
 export interface BroadcastSettings {
   micId: string;
@@ -62,7 +64,7 @@ export class BroadcastMixer {
   private readonly analyser: AnalyserNode;
   private readonly buf: Float32Array<ArrayBuffer>;
   private mic: { stream: MediaStream; chain: VoiceChain } | null = null;
-  private music: { stream: MediaStream; source: MediaStreamAudioSourceNode; kind: MusicSource } | null = null;
+  private music: { stream: MediaStream | null; source: AudioNode; kind: MusicSource } | null = null;
   micMuted = false;
 
   constructor() {
@@ -138,6 +140,13 @@ export class BroadcastMixer {
     this.closeMusic();
     this.musicGain.gain.value = dbToGain(db);
     if (source === 'none') return;
+    if (source === 'local') {
+      const node = localPlayer().audioSource(this.ctx);
+      node.disconnect();
+      node.connect(this.musicGain);
+      this.music = { stream: null, source: node, kind: source };
+      return;
+    }
     let stream: MediaStream;
     if (source === 'tab') {
       const md = navigator.mediaDevices as MediaDevices & { getDisplayMedia(c: unknown): Promise<MediaStream> };
@@ -163,13 +172,15 @@ export class BroadcastMixer {
   }
 
   get musicActive(): boolean {
-    return this.music !== null && this.music.stream.getAudioTracks().some((t) => t.readyState === 'live');
+    if (!this.music) return false;
+    return this.music.kind === 'local' || (this.music.stream?.getAudioTracks().some((t) => t.readyState === 'live') ?? false);
   }
 
   closeMusic(): void {
     if (!this.music) return;
-    this.music.source.disconnect();
-    this.music.stream.getTracks().forEach((t) => t.stop());
+    if (this.music.kind === 'local') localPlayer().releaseSource();
+    else this.music.source.disconnect();
+    this.music.stream?.getTracks().forEach((t) => t.stop());
     this.music = null;
   }
 

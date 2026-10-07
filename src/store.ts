@@ -35,6 +35,8 @@ export interface GameState {
   liveServer?: string | undefined;
   /** Evento de la plataforma Bingo Hit al que pertenece esta partida (sala Live `bingo-<evento>`). */
   eventId?: string | undefined;
+  /** De dónde sale la música: Spotify (por defecto) o la biblioteca propia (archivos subidos, reproducidos en el navegador). */
+  source?: 'spotify' | 'library';
 }
 
 const PLAYER_ID_KEY = 'musicbingo:playerId';

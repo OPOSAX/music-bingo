@@ -34,8 +34,8 @@ export async function renderHostEvents(root: HTMLElement, params: URLSearchParam
       'section',
       { class: 'panel' },
       h('p', null, `Hola, ${me.name}. `, h('span', { class: 'small muted' }, permissionsSummary(me.permissions))),
-      h('ol', { class: 'steps small' }, h('li', null, h('strong', null, 'Crea el evento'), ': nombre, fecha, modalidad y tarjetas.'), h('li', null, h('strong', null, 'Elige la música'), ' de Spotify: se generan las tarjetas.'), h('li', null, h('strong', null, 'Conduce'), ': el evento ya está publicado; muestra el QR y pasa las canciones.')),
-      h('div', { class: 'actions' }, button('➕ Nuevo evento', () => { clear(wizardHost); wizardHost.appendChild(renderWizard(me, null, refresh)); wizardHost.scrollIntoView({ behavior: 'smooth' }); }, 'btn btn-primary')),
+      h('ol', { class: 'steps small' }, h('li', null, h('strong', null, 'Crea el evento'), ': nombre, fecha, modalidad y tarjetas.'), h('li', null, h('strong', null, 'Elige la música'), ': de Spotify o de tu biblioteca; se generan las tarjetas.'), h('li', null, h('strong', null, 'Conduce'), ': el evento ya está publicado; muestra el QR y pasa las canciones.')),
+      h('div', { class: 'actions' }, button('🎵 Mi biblioteca', () => navigate('/biblioteca'), 'btn'), button('➕ Nuevo evento', () => { clear(wizardHost); wizardHost.appendChild(renderWizard(me, null, refresh)); wizardHost.scrollIntoView({ behavior: 'smooth' }); }, 'btn btn-primary')),
     ),
   );
   root.appendChild(wizardHost);

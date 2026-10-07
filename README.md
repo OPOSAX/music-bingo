@@ -209,6 +209,14 @@ Administrador General (animadores, permisos, pagos, políticas, métricas), anim
 que entran por enlace o QR, obtienen o compran tarjetas y juegan con varias a la vez. Los pagos los recibe
 siempre la plataforma. Detalle en [`docs/PLATFORM.md`](docs/PLATFORM.md).
 
+## Mi biblioteca (música propia, sin Spotify)
+
+Los animadores y el administrador suben canciones (mp3, m4a, ogg, wav, flac) en **Mi biblioteca** (`#/biblioteca`); las
+canciones se comparten entre todos (el mismo archivo no se sube dos veces) y cada animador arma sus listas. Al poner música
+a un evento se elige **Spotify** o **Mi biblioteca**: con la biblioteca la música suena en el navegador del anfitrión sin
+Premium y entra directa en la transmisión a los jugadores. Archivos en el volumen de datos (`data/media`); API en
+`/api/library/*` (`server/platform/library.mjs`); límite por archivo con `MAX_SONG_MB`.
+
 ## Bingo Hit Live
 
 El animador transmite cámara, micrófono y audio del evento (mixer → USB → WebRTC) y los jugadores

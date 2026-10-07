@@ -22,9 +22,9 @@ import mediasoup from 'mediasoup';
 import { Server as SocketServer } from 'socket.io';
 
 import { ConcertRoom } from '../public/js/concert/concert-room.js';
-import { isCrowdMicAppData, readConfig } from '../public/js/concert/protocol.js';
+import { SLOT_STATES, isCrowdMicAppData, readConfig } from '../public/js/concert/protocol.js';
 import { assertCanConsume, attachConcertHandlers } from '../public/js/concert/server-handlers.js';
-import { attachLiveHandlers, iceServersFromEnv, liveSummary } from './live.mjs';
+import { attachLiveHandlers, createLiveState, iceServersFromEnv, liveSummary, registerGuestVideo } from './live.mjs';
 import { hashToken, identify } from './platform/auth.mjs';
 import { createPlatformApi } from './platform/api.mjs';
 import { createLibraryApi } from './platform/library.mjs';
@@ -335,6 +335,19 @@ export async function startServer(options = {}) {
             const p = concert.participantBySocket(socket.id);
             if (!p) return fail(ack, 'not-joined', 'Primero concert:join');
             const { transportId, kind, rtpParameters, appData } = payload || {};
+            // Cámara del invitado: solo mientras tiene micrófono asignado (PREPARING/PREPARED/LIVE/MUTED).
+            if (kind === 'video' && appData?.source === 'live-guest') {
+                if (!SLOT_STATES.includes(p.state)) return fail(ack, 'not-in-slot', 'Solo quien tiene el micrófono puede mostrar su cámara');
+                try {
+                    const guestData = { source: 'live-guest', mediaType: 'video', roomId, participantId: p.participantId, name: p.name };
+                    const id = await btalk.produce(socket.id, transportId, rtpParameters, kind, 'video', { appData: guestData, announce: false });
+                    const found = findProducer(btalk, id);
+                    registerGuestVideo({ io, roomId, live: (entry.live ??= createLiveState()), producer: found.producer, socketId: socket.id, participantId: p.participantId, name: p.name });
+                    return ok(ack, { id });
+                } catch (err) {
+                    return fail(ack, 'produce', err.message);
+                }
+            }
             if (kind !== 'audio') return fail(ack, 'kind', 'Solo audio');
             if (!isCrowdMicAppData(appData) || appData.participantId !== p.participantId || appData.roomId !== roomId) return fail(ack, 'appData', 'appData inválido');
             try {

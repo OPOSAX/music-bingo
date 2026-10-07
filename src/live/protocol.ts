@@ -25,7 +25,8 @@ export const LIVE_EVENTS = {
   stop: 'live:stop', // host → servidor
   started: 'live:started', // servidor → todos { producers }
   stopped: 'live:stopped',
-  producerAdded: 'live:producer_added',
+  producerAdded: 'live:producer_added', // { producerId, kind, paused, source?: 'live-host' | 'live-guest', name? }
+  producerRemoved: 'live:producer_removed', // { producerId, source }
   producerState: 'live:producer_state', // { producerId, kind, paused }
   pauseProducer: 'live:pause-producer',
   resumeProducer: 'live:resume-producer',
@@ -57,12 +58,17 @@ export interface LiveProducerInfo {
   producerId: string;
   kind: MediaKind;
   paused: boolean;
+  /** 'live-host' (animador, por defecto) o 'live-guest' (cámara del invitado que canta o habla). */
+  source?: 'live-host' | 'live-guest';
+  name?: string;
 }
 
 export interface LiveState {
   active: boolean;
   startedAt: number | null;
   producers: LiveProducerInfo[];
+  /** Cámaras de invitados en este momento (independientes de la transmisión del animador). */
+  guests?: LiveProducerInfo[];
 }
 
 export interface LiveJoinPayload {

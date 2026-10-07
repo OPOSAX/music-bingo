@@ -170,6 +170,21 @@ async function requestWakeLock(): Promise<void> {
   }
 }
 
+/** Botón de cámara (solo con micrófono preparado o en vivo) y vista previa propia. */
+function cameraControls(c: ParticipantClient, snap: ParticipantSnapshot, cls: string): HTMLElement[] {
+  if (!['PREPARED', 'LIVE', 'MUTED'].includes(snap.state)) return [];
+  const toggle = button(snap.cameraOn ? '📷 Ocultar mi cámara' : '📷 Mostrar mi cámara', () => void c.setCamera(!snap.cameraOn).then(() => toast(snap.cameraOn ? 'Cámara apagada' : 'Tu cámara se ve sobre el cartón de todos', 'success'), (err) => toast(errorMessage(err), 'error')), cls);
+  const out: HTMLElement[] = [toggle];
+  const stream = c.media.cameraStream;
+  if (snap.cameraOn && stream) {
+    const v = h('video', { class: 'sing-self', autoplay: true, playsInline: true, muted: true });
+    v.setAttribute('playsinline', '');
+    v.srcObject = stream;
+    out.push(v);
+  }
+  return out;
+}
+
 function drawStatus(panel: HTMLElement, c: ParticipantClient, snap: ParticipantSnapshot, options: KaraokePanelOptions, onExit: () => Promise<void>): void {
   clear(panel);
   const ui = STATE_UI[snap.state];
@@ -179,6 +194,7 @@ function drawStatus(panel: HTMLElement, c: ParticipantClient, snap: ParticipantS
     panel.appendChild(h('span', { class: 'karaoke-chip' }, `${ui.icon} ${ui.title}`));
     if (snap.state === 'LIVE') panel.appendChild(h('p', { class: 'small karaoke-hint' }, 'Tu voz sale por el PA: canta cerca del móvil.'));
     if (snap.error) panel.appendChild(h('p', { class: 'small alert alert-error' }, snap.error));
+    for (const el of cameraControls(c, snap, 'btn btn-sm')) panel.appendChild(el);
     if (hot) panel.appendChild(button('⏹ APAGAR MI MICRÓFONO', () => void c.stopMyMic().then(() => toast('Micrófono apagado', 'success'), (err) => toast(errorMessage(err), 'error')), 'btn btn-danger btn-lg'));
     else if (snap.state === 'CONNECTED' || snap.state === 'ERROR') panel.appendChild(button('🎤 Quiero cantar', () => void c.ready().catch((err) => toast(errorMessage(err), 'error')), 'btn btn-sm btn-primary'));
     panel.appendChild(button(hot ? 'Salir' : 'Ya no quiero cantar', () => void onExit(), 'btn btn-sm btn-link'));
@@ -191,6 +207,7 @@ function drawStatus(panel: HTMLElement, c: ParticipantClient, snap: ParticipantS
   if (snap.state === 'LIVE') panel.appendChild(h('div', { class: 'live-pulse' }));
   const actions = h('div', { class: 'actions sing-actions' });
   const big = options.compact ? 'btn-lg' : 'btn-xl';
+  for (const el of cameraControls(c, snap, 'btn')) actions.appendChild(el);
   if (snap.micActive || snap.state === 'PREPARING' || snap.state === 'PREPARED' || snap.state === 'LIVE' || snap.state === 'MUTED') {
     actions.appendChild(button('⏹ APAGAR MI MICRÓFONO', () => void c.stopMyMic().then(() => toast('Micrófono apagado', 'success'), (err) => toast(errorMessage(err), 'error')), `btn btn-danger ${big}`));
   } else if (snap.state === 'CONNECTED' || snap.state === 'ERROR') {

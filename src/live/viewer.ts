@@ -19,6 +19,8 @@ export const LIVE_TRANSPORT_NAMES = {
 
 export interface ViewerCallbacks {
   onStream?(stream: MediaStream): void;
+  /** Cámara del invitado que canta o habla (null cuando se retira). */
+  onGuest?(stream: MediaStream | null, name: string): void;
   onLive?(state: LiveState | null): void;
   onLink?(state: LinkState): void;
   onHost?(online: boolean): void;
@@ -26,8 +28,15 @@ export interface ViewerCallbacks {
   onProducerState?(info: LiveProducerInfo): void;
 }
 
+export interface ViewerOptions {
+  /** 'guest': solo la cámara del invitado (p. ej. el animador, que no debe consumir su propia transmisión). */
+  only?: 'guest';
+}
+
 export class LiveViewer {
   readonly stream = new MediaStream();
+  readonly guestStream = new MediaStream();
+  guestName = '';
   live: LiveState | null = null;
   private adapter: BTalkConsumerAdapter | null = null;
   private readonly consumed = new Set<string>();
@@ -37,6 +46,7 @@ export class LiveViewer {
   constructor(
     readonly session: LiveSession,
     private readonly cb: ViewerCallbacks = {},
+    private readonly options: ViewerOptions = {},
   ) {}
 
   async start(): Promise<void> {
@@ -50,10 +60,13 @@ export class LiveViewer {
       this.session.on(LIVE_EVENTS.started, (state: LiveState) => void this.apply(state)),
       this.session.on(LIVE_EVENTS.stopped, () => this.clear()),
       this.session.on(LIVE_EVENTS.producerAdded, (p: LiveProducerInfo) => {
+        if (p.source === 'live-guest') return void this.consumeGuest(p);
+        if (this.options.only === 'guest') return;
         if (!this.live) this.live = { active: true, startedAt: Date.now(), producers: [] };
         this.live.producers.push(p);
         void this.consume(p);
       }),
+      this.session.on(LIVE_EVENTS.producerRemoved, (p: { producerId: string }) => this.dropGuest(p.producerId)),
       this.session.on(LIVE_EVENTS.producerState, (p: LiveProducerInfo) => this.cb.onProducerState?.(p)),
       this.session.on(LIVE_EVENTS.hostOnline, () => this.cb.onHost?.(true)),
       this.session.on(LIVE_EVENTS.hostOffline, () => this.cb.onHost?.(false)),
@@ -65,7 +78,38 @@ export class LiveViewer {
     this.cb.onHost?.(ack.hostOnline);
     this.cb.onViewers?.(ack.viewers);
     this.cb.onLink?.(this.session.state);
-    await this.apply(ack.live.active ? ack.live : null);
+    for (const g of ack.live.guests ?? []) void this.consumeGuest(g);
+    if (this.options.only !== 'guest') await this.apply(ack.live.active ? ack.live : null);
+  }
+
+  private guestProducerId: string | null = null;
+
+  /** Un invitado a la vez: el último que enciende la cámara sustituye al anterior. */
+  private async consumeGuest(p: LiveProducerInfo): Promise<void> {
+    if (this.stopped || this.consumed.has(p.producerId)) return;
+    this.consumed.add(p.producerId);
+    try {
+      const adapter = await this.ensureAdapter();
+      const single = await adapter.consume(p.producerId);
+      for (const old of this.guestStream.getTracks()) this.guestStream.removeTrack(old);
+      for (const t of single.getTracks()) this.guestStream.addTrack(t);
+      this.guestProducerId = p.producerId;
+      this.guestName = p.name ?? '';
+      this.cb.onGuest?.(this.guestStream, this.guestName);
+    } catch (err) {
+      this.consumed.delete(p.producerId);
+      console.warn('No se pudo recibir la cámara del invitado', err);
+    }
+  }
+
+  private dropGuest(producerId: string): void {
+    this.consumed.delete(producerId);
+    this.adapter?.close(producerId);
+    if (this.guestProducerId !== producerId) return;
+    this.guestProducerId = null;
+    for (const old of this.guestStream.getTracks()) this.guestStream.removeTrack(old);
+    this.cb.onGuest?.(null, this.guestName);
+    this.guestName = '';
   }
 
   private async ensureAdapter(): Promise<BTalkConsumerAdapter> {
@@ -110,7 +154,9 @@ export class LiveViewer {
     this.adapter = null;
     this.consumed.clear();
     for (const old of this.stream.getTracks()) this.stream.removeTrack(old);
-    await this.apply(state.active ? state : null);
+    if (this.guestProducerId) this.dropGuest(this.guestProducerId);
+    for (const g of state.guests ?? []) void this.consumeGuest(g);
+    if (this.options.only !== 'guest') await this.apply(state.active ? state : null);
   }
 
   private clear(): void {

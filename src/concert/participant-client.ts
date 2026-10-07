@@ -21,6 +21,7 @@ export interface ParticipantSnapshot {
   slotId: string | null;
   error: string | null;
   micActive: boolean;
+  cameraOn: boolean;
 }
 
 type Listener = (snapshot: ParticipantSnapshot) => void;
@@ -43,7 +44,7 @@ export class ParticipantClient {
   ) {}
 
   snapshot(): ParticipantSnapshot {
-    return { state: this.state, connected: this.signaling.connected, slotId: this.slotId, error: this.error, micActive: this.media.state !== 'IDLE' };
+    return { state: this.state, connected: this.signaling.connected, slotId: this.slotId, error: this.error, micActive: this.media.state !== 'IDLE', cameraOn: this.media.cameraOn };
   }
 
   onChange(listener: Listener): () => void {
@@ -99,6 +100,13 @@ export class ParticipantClient {
   /** ESTOY DISPONIBLE: solo Socket.IO, ningún permiso de micrófono todavía. */
   async ready(): Promise<void> {
     await this.signaling.request(EVENTS.ready);
+  }
+
+  /** Mostrar u ocultar la cámara mientras se tiene el micrófono (los demás la ven sobre su cartón). */
+  async setCamera(on: boolean): Promise<void> {
+    if (on) await this.media.startCamera({ participantId: this.identity.participantId, roomId: this.identity.roomId });
+    else this.media.stopCamera();
+    this.notify();
   }
 
   /** SALIR de la lista (y apagar el micrófono si estaba activo). */

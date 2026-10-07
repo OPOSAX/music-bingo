@@ -82,6 +82,8 @@ export class ConcertMediaService {
   private stream: MediaStream | null = null;
   private producer: ProducerHandle | null = null;
   private slotId: string | null = null;
+  /** Cámara del invitado (opcional): se publica por el mismo SEND transport mientras tiene micrófono. */
+  private video: { stream: MediaStream; producer: ProducerHandle } | null = null;
   readonly gumCalls: number = 0;
 
   constructor(
@@ -100,6 +102,42 @@ export class ConcertMediaService {
 
   get track(): MediaStreamTrack | null {
     return this.stream?.getAudioTracks()[0] ?? null;
+  }
+
+  get cameraOn(): boolean {
+    return this.video !== null;
+  }
+
+  get cameraStream(): MediaStream | null {
+    return this.video?.stream ?? null;
+  }
+
+  /** Muestra la cámara (solo con micrófono preparado o en vivo). Resolución baja: es un recuadro sobre el cartón. */
+  async startCamera(identity: { participantId: string; roomId: string }, facing: 'user' | 'environment' = 'user'): Promise<MediaStream> {
+    if (this.state === 'IDLE' || this.state === 'PREPARING') throw new Error('Primero el animador tiene que darte paso');
+    if (this.video) return this.video.stream;
+    const stream = await this.getUserMedia({ video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 20, max: 24 } }, audio: false });
+    const track = stream.getVideoTracks()[0];
+    if (!track) throw new Error('La cámara no entregó vídeo');
+    try {
+      const producer = await this.adapter.produce(track, { source: 'live-guest', mediaType: 'video', participantId: identity.participantId, roomId: identity.roomId }, { codecOptions: { videoGoogleStartBitrate: 300 }, encodings: [{ maxBitrate: 450000 }], paused: false });
+      this.video = { stream, producer };
+      return stream;
+    } catch (err) {
+      stream.getTracks().forEach((t) => t.stop());
+      throw err;
+    }
+  }
+
+  stopCamera(): void {
+    if (!this.video) return;
+    try {
+      this.video.producer.close();
+    } catch {
+      /* ya cerrado */
+    }
+    this.video.stream.getTracks().forEach((t) => t.stop());
+    this.video = null;
   }
 
   /** PREPARE: permiso de micrófono → SEND transport → producer en pausa. Devuelve el payload de `concert:prepared`. */
@@ -151,6 +189,7 @@ export class ConcertMediaService {
 
   /** END / CANCEL / SALIR: cierra producer y transporte y detiene las pistas (apaga el indicador del micrófono). */
   async stop(): Promise<void> {
+    this.stopCamera();
     try {
       this.producer?.close();
     } catch {

@@ -46,6 +46,7 @@ export function createLiveState() {
     active: false,
     startedAt: null,
     producers: new Map(), // producerId → { kind, socketId, paused }
+    guests: new Map(), // producerId → { socketId, participantId, name } (cámara del invitado que canta o habla)
     game: { cfg: null, pool: new Map(), state: null },
     pendingReactions: new Map(),
     reactionTimer: null,
@@ -59,7 +60,22 @@ function liveInfo(live) {
     active: live.active,
     startedAt: live.startedAt,
     producers: [...live.producers.entries()].map(([producerId, p]) => ({ producerId, kind: p.kind, paused: p.paused })),
+    guests: [...live.guests.entries()].map(([producerId, g]) => ({ producerId, kind: 'video', paused: false, source: 'live-guest', name: g.name })),
   };
+}
+
+/**
+ * Cámara de un invitado (participante del karaoke con micrófono asignado): se anuncia a toda la sala como
+ * producer 'live-guest' y se retira sola cuando el producer se cierra (fin del turno, salida o desconexión).
+ */
+export function registerGuestVideo({ io, roomId, live, producer, socketId, participantId, name }) {
+  const allRoom = `live:${roomId}`;
+  live.guests.set(producer.id, { socketId, participantId, name });
+  io.to(allRoom).emit(E.producerAdded, { producerId: producer.id, kind: 'video', paused: false, source: 'live-guest', name });
+  producer.observer.once('close', () => {
+    if (!live.guests.delete(producer.id)) return;
+    io.to(allRoom).emit(E.producerRemoved, { producerId: producer.id, source: 'live-guest' });
+  });
 }
 
 function metricsOf(live) {
@@ -210,7 +226,7 @@ export function attachLiveHandlers(ctx) {
   socket.on(E.consume, async (payload, ack) => {
     const { transportId, producerId, rtpCapabilities } = payload || {};
     const found = findProducer(btalk, producerId);
-    if (!found || found.producer.appData?.source !== 'live-host') return fail(ack, 'unknown-producer', 'Producer desconocido');
+    if (!found || !['live-host', 'live-guest'].includes(found.producer.appData?.source)) return fail(ack, 'unknown-producer', 'Producer desconocido');
     try {
       const params = await btalk.consume(socket.id, transportId, producerId, rtpCapabilities);
       if (!params) return fail(ack, 'consume', 'No se pudo consumir (capacidades RTP)');

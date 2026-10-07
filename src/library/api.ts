@@ -27,6 +27,17 @@ export interface Playlist {
   updatedAt: string;
 }
 
+export interface SampleList {
+  id: string;
+  name: string;
+  description: string;
+  source: string;
+  total: number;
+  imported: number;
+  playlistId: string | null;
+  job: { running: boolean; done: number; total: number; errors: string[] } | null;
+}
+
 const token = () => tokens.admin() || tokens.host();
 
 export const libraryApi = {
@@ -39,6 +50,9 @@ export const libraryApi = {
   createPlaylist: (name: string, songIds: string[] = []) => api<Playlist>('POST', '/api/library/playlists', { token: token(), body: { name, songIds } }),
   updatePlaylist: (id: string, patch: { name?: string; songIds?: string[] }) => api<Playlist>('PATCH', `/api/library/playlists/${id}`, { token: token(), body: patch }),
   deletePlaylist: (id: string) => api<{ deleted: true }>('DELETE', `/api/library/playlists/${id}`, { token: token() }),
+  /** Listas de ejemplo con música libre: el servidor descarga los archivos y crea la lista. */
+  samples: () => api<{ samples: SampleList[] }>('GET', '/api/library/samples', { token: token() }),
+  importSample: (id: string) => api<SampleList>('POST', `/api/library/samples/${id}/import`, { token: token() }),
 };
 
 /** URL del archivo de audio de una canción (el id es la única llave; vale para <audio>). */

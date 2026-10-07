@@ -6,7 +6,7 @@
 import { button, clear, errorMessage, formatDuration, h, toast } from '../../dom.js';
 import { navigate } from '../../router.js';
 import { resolveServer, tokens } from '../../platform/api.js';
-import { libraryApi, parseFileName, songUrl, uploadSong, type Playlist, type Song } from '../api.js';
+import { libraryApi, parseFileName, songUrl, uploadSong, type Playlist, type SampleList, type Song } from '../api.js';
 
 let preview: HTMLAudioElement | null = null;
 
@@ -60,6 +60,49 @@ export async function renderLibrary(root: HTMLElement, params: URLSearchParams =
   });
   const uploadPanel = h('section', { class: 'panel' }, h('h2', null, '⬆️ Subir canciones'), drop, fileInput, uploads, h('p', { class: 'small muted' }, 'Sube solo música con la que tengas derecho a hacerlo.'));
   root.appendChild(uploadPanel);
+
+  /* ---------------- Listas de ejemplo (música libre) ---------------- */
+  const samplesBox = h('div', { class: 'samples' });
+  root.appendChild(h('section', { class: 'panel' }, h('h2', null, '🎁 Listas de ejemplo (música libre)'), h('p', { class: 'small muted' }, 'Para probar el sistema sin subir nada: el servidor descarga las canciones (dominio público) y te crea la lista.'), samplesBox));
+  let samplesTimer: ReturnType<typeof setTimeout> | null = null;
+  async function drawSamples(): Promise<void> {
+    if (samplesTimer) clearTimeout(samplesTimer);
+    samplesTimer = null;
+    let samples: SampleList[] = [];
+    try {
+      samples = (await libraryApi.samples()).samples;
+    } catch {
+      samplesBox.textContent = '';
+      return;
+    }
+    clear(samplesBox);
+    let anyRunning = false;
+    for (const s of samples) {
+      const running = !!s.job?.running;
+      anyRunning ||= running;
+      const complete = s.imported >= s.total && s.playlistId;
+      const state = running ? `Descargando… ${s.job!.done}/${s.job!.total}` : complete ? `✓ Importada (${s.imported} canciones)` : s.imported ? `${s.imported}/${s.total} canciones ya en la biblioteca` : `${s.total} canciones`;
+      samplesBox.appendChild(
+        h(
+          'div',
+          { class: 'sample-row' },
+          h('div', { class: 'song-meta' }, h('strong', null, s.name), h('span', { class: 'muted small' }, s.description), h('span', { class: 'small' }, state), s.job?.errors.length ? h('span', { class: 'small alert-error' }, s.job.errors.join(' · ')) : null),
+          h('div', { class: 'actions' }, Object.assign(button(running ? '⏳ Importando…' : complete ? '↻ Volver a importar' : '⬇️ Importar lista', () => void importSample(s.id), `btn btn-sm ${complete || running ? '' : 'btn-primary'}`), { disabled: running }), s.source ? h('a', { class: 'small', href: s.source, target: '_blank', rel: 'noopener' }, 'origen') : null),
+        ),
+      );
+    }
+    if (anyRunning) samplesTimer = setTimeout(() => void drawSamples().then(reload), 2000);
+  }
+  async function importSample(id: string): Promise<void> {
+    try {
+      await libraryApi.importSample(id);
+      toast('Descargando la lista de ejemplo en el servidor… tarda un par de minutos.', 'info');
+      await drawSamples();
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    }
+  }
+  void drawSamples();
 
   async function handleFiles(files: File[]): Promise<void> {
     const audio = files.filter((f) => /\.(mp3|m4a|aac|ogg|opus|wav|flac|webm)$/i.test(f.name));

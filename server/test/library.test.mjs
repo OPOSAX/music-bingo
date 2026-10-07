@@ -119,3 +119,73 @@ test('biblioteca: subir, deduplicar, descargar con Range, editar, listas y permi
     close();
   }
 });
+
+test('lista de ejemplo: el servidor descarga las canciones, deduplica y crea la lista del animador', async () => {
+  // Servidor de archivos local que hace de archive.org
+  const a = bytes(3000, 1);
+  const b = bytes(3000, 2);
+  const files = createServer((req, res) => {
+    const body = req.url === '/a.mp3' ? a : req.url === '/b.mp3' ? b : null;
+    if (!body) {
+      res.writeHead(404);
+      return res.end();
+    }
+    res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': body.length });
+    res.end(body);
+  });
+  await new Promise((r) => files.listen(0, '127.0.0.1', r));
+  const fbase = `http://127.0.0.1:${files.address().port}`;
+  const store = new Store(null);
+  const service = new PlatformService(store, { env: {}, appUrl: 'http://app/', apiUrl: 'http://api' });
+  const platform = createPlatformApi(service, { adminToken: 'admin-token' });
+  const mediaDir = mkdtempSync(path.join(tmpdir(), 'bingo-media-'));
+  const sampleLists = [{ id: 'demo', name: 'Demo libre', description: 'dos canciones', source: fbase, songs: [
+    { url: `${fbase}/a.mp3`, title: 'Uno', artist: 'Libre', album: 'PD', durationMs: 1000 },
+    { url: `${fbase}/b.mp3`, title: 'Dos', artist: 'Libre', album: 'PD', durationMs: 2000 },
+    { url: `${fbase}/no.mp3`, title: 'Rota', artist: 'Libre', album: 'PD', durationMs: 3000 },
+  ] }];
+  const library = createLibraryApi(store, { mediaDir, maxBytes: 1024 * 1024, adminToken: 'admin-token', sampleLists });
+  const server = createServer((req, res) => {
+    library(req, res).then((h) => (h ? true : platform(req, res))).then((h) => { if (!h) { res.writeHead(404); res.end(); } });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const call = async (method, p, token) => { const res = await fetch(base + p, { method, headers: { Authorization: `Bearer ${token}`, Connection: 'close' } }); return { status: res.status, data: await res.json() }; };
+  try {
+    const { data: h } = await (await fetch(base + '/api/admin/hosts', { method: 'POST', headers: { Authorization: 'Bearer admin-token', 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Ana', username: 'ana2', password: 'secreta1' }) })).json().then((d) => ({ data: d }));
+    const list = await call('GET', '/api/library/samples', h.token);
+    assert.equal(list.data.samples[0].imported, 0);
+    const started = await call('POST', '/api/library/samples/demo/import', h.token);
+    assert.equal(started.status, 200);
+    assert.equal(started.data.job.running, true);
+    let status;
+    for (let i = 0; i < 50; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      status = (await call('GET', '/api/library/samples', h.token)).data.samples[0];
+      if (!status.job.running) break;
+    }
+    assert.equal(status.job.running, false);
+    assert.equal(status.imported, 2, 'las dos descargables');
+    assert.equal(status.job.errors.length, 1, 'la rota se informa');
+    assert.ok(status.playlistId);
+    const pl = (await call('GET', `/api/library/playlists/${status.playlistId}`, h.token)).data;
+    assert.equal(pl.name, 'Demo libre');
+    assert.deepEqual(pl.songs.map((s) => s.title), ['Uno', 'Dos']);
+    assert.equal(store.list('songs').length, 2);
+    for (const s of pl.songs) assert.ok(existsSync(path.join(mediaDir, `${s.id}.mp3`)));
+    // Volver a importar: no duplica canciones ni listas
+    await call('POST', '/api/library/samples/demo/import', h.token);
+    for (let i = 0; i < 50; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      if (!(await call('GET', '/api/library/samples', h.token)).data.samples[0].job.running) break;
+    }
+    assert.equal(store.list('songs').length, 2);
+    assert.equal(store.list('playlists').length, 1);
+  } finally {
+    server.closeAllConnections();
+    server.close();
+    files.closeAllConnections();
+    files.close();
+    rmSync(mediaDir, { recursive: true, force: true });
+  }
+});

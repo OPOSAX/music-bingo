@@ -17,7 +17,7 @@ import { loadToken, saveToken } from '../concert/store.js';
 import type { ConcertEndpoint } from '../concert/session.js';
 import { djPanelUrl } from '../concert/views/karaoke-host-panel.js';
 import { liveLinkOf, renderLiveHostPanel } from '../live/views/host-panel.js';
-import { renderBroadcastPanel } from '../live/views/broadcast-panel.js';
+import { renderBroadcastPanel, startBroadcast } from '../live/views/broadcast-panel.js';
 import { liveRoomId } from '../live/protocol.js';
 import { detectLiveServer } from '../concert/session.js';
 import { renderKaraokeHostPanel } from '../concert/views/karaoke-host-panel.js';
@@ -63,7 +63,7 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       'header',
       { class: 'page-header' },
       h('div', null, h('h1', null, `Partida ${game.config.seed}`), h('p', { class: 'muted' }, `${game.playlistName} · ${game.tracks.length} canciones · ${cards.length} tarjetas · ${game.config.gridSize}×${game.config.gridSize}`)),
-      h('div', { class: 'actions' }, game.liveServer ? button('🎥 Transmitir', () => navigate(`/live?event=${encodeURIComponent(game.eventId ?? game.config.seed)}`), 'btn') : null, game.liveServer ? button('🎤 Panel del DJ', () => navigate(djPanelUrl(karaokeEndpoint(game))), 'btn') : null, button('Tarjetas', () => navigate('/cards'), 'btn'), button('Mis eventos', () => navigate('/events'), 'btn btn-link')),
+      h('div', { class: 'actions' }, game.liveServer ? button('🎥 Transmitir con cámara', () => void startBroadcast({ camera: true }).catch((err) => toast(errorMessage(err), 'error')), 'btn') : null, game.liveServer ? button('🎤 Panel del DJ', () => navigate(djPanelUrl(karaokeEndpoint(game))), 'btn') : null, button('Tarjetas', () => navigate('/cards'), 'btn'), button('Mis eventos', () => navigate('/events'), 'btn btn-link')),
     ),
   );
 

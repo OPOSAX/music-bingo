@@ -133,3 +133,19 @@ roles, transportes, publish/consume, histórico, bingo validado, ganador, reacci
   el servidor devuelve "sin comprobar" y el anfitrión valida a mano.
 - Invitar al ganador a cámara (bidireccional) queda preparado (el viewer ya tiene sesión y el SFU
   admite `send` para roles autorizados) pero no implementado.
+
+## 9. Transmisión de audio desde la pantalla del anfitrión (sala con música y conversación)
+
+Para eventos online sin cámara: el panel **📡 Transmitir a los jugadores** (`#/host`, columna derecha) mezcla en el
+navegador del anfitrión (`src/live/broadcast.ts`, `src/live/views/broadcast-panel.ts`):
+
+- **Mi micrófono**: voz del animador con la cadena de voz (paso alto, EQ, ganancia, compresor, limitador).
+- **Música**: una entrada de audio (mezclador USB, loopback tipo *Stereo Mix* / VB-Cable) o el **audio de esta pestaña**
+  (captura de pantalla con "Compartir audio"; si Spotify protege la pista el navegador puede entregar silencio: usar loopback).
+- **Cantantes**: la salida del panel "Quieren cantar" entra en la misma mezcla (`addKaraokeTap`), así quien recibe paso
+  canta o habla con el animador y todos lo oyen.
+
+La mezcla sale como una sola pista de audio (`LiveHostPublisher.useStream`) por el mismo SFU; los jugadores la reciben en
+`LiveHostVideo` con el indicador "🔊 Audio en directo". Todo el audio del anfitrión comparte un `AudioContext`
+(`src/concert/audio/shared-context.ts`). No usar a la vez el panel `#/live` (cámara) y esta transmisión en la misma sala:
+los jugadores se quedan con la última pista de audio publicada.

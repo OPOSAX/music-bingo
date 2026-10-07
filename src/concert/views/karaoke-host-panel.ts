@@ -14,6 +14,7 @@ import { EVENTS, type ParticipantInfo, type ParticipantState } from '../protocol
 import { createConsumerAdapter, createSignaling, type ConcertEndpoint } from '../session.js';
 import { loadConfig } from '../store.js';
 import { DEFAULT_MIX, VoiceChain, loadMix, saveMix, type MixSettings } from '../audio/voice-chain.js';
+import { getSharedAudioContext } from '../audio/shared-context.js';
 
 /** Control del volumen de la música (reproductor de Spotify del anfitrión) para bajarla mientras alguien canta. */
 export interface MusicControl {
@@ -44,6 +45,27 @@ interface Watcher {
 
 let watcher: Watcher | null = null;
 
+/** Salidas adicionales de la mezcla de cantantes (p. ej. la mesa de transmisión): reciben lo mismo que el PA. */
+const taps = new Set<AudioNode>();
+
+export function addKaraokeTap(node: AudioNode): void {
+  taps.add(node);
+  try {
+    watcher?.master?.connect(node);
+  } catch {
+    /* contexto distinto o nodo cerrado */
+  }
+}
+
+export function removeKaraokeTap(node: AudioNode): void {
+  taps.delete(node);
+  try {
+    watcher?.master?.disconnect(node);
+  } catch {
+    /* no estaba conectado */
+  }
+}
+
 export function releaseKaraokeWatch(): void {
   const w = watcher;
   watcher = null;
@@ -53,7 +75,7 @@ export function releaseKaraokeWatch(): void {
   w.playing.clear();
   w.consumer?.closeAll();
   void restoreMusic(w);
-  void w.ctx?.close().catch(() => undefined);
+  w.master?.disconnect();
   w.dj.disconnect();
 }
 
@@ -193,11 +215,18 @@ function ensureAudio(w: Watcher): void {
     if (w.ctx.state === 'suspended') void w.ctx.resume().catch(() => undefined);
     return;
   }
-  const Ctx = (globalThis as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext ?? (globalThis as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!Ctx) return;
-  w.ctx = new Ctx();
-  w.master = w.ctx.createGain();
-  w.master.connect(w.ctx.destination);
+  const ctx = getSharedAudioContext();
+  if (!ctx) return;
+  w.ctx = ctx;
+  w.master = ctx.createGain();
+  w.master.connect(ctx.destination);
+  for (const tap of taps) {
+    try {
+      w.master.connect(tap);
+    } catch {
+      /* nodo cerrado */
+    }
+  }
 }
 
 /** Reproduce por este equipo los micrófonos preparados o en vivo; cierra los que terminaron. */

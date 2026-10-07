@@ -16,6 +16,7 @@ import { loadToken, saveToken } from '../concert/store.js';
 import type { ConcertEndpoint } from '../concert/session.js';
 import { djPanelUrl } from '../concert/views/karaoke-host-panel.js';
 import { liveLinkOf, renderLiveHostPanel } from '../live/views/host-panel.js';
+import { renderBroadcastPanel } from '../live/views/broadcast-panel.js';
 import { liveRoomId } from '../live/protocol.js';
 import { detectLiveServer } from '../concert/session.js';
 import { renderKaraokeHostPanel } from '../concert/views/karaoke-host-panel.js';
@@ -85,6 +86,8 @@ export async function renderHost(root: HTMLElement): Promise<void> {
       h('div', { class: 'host-qr-row' }, qrBox, h('div', { class: 'host-qr-text' }, h('h2', null, '📱 QR de acceso'), h('p', { class: 'muted small' }, 'Todos escanean este QR: escriben su nombre, reciben su tarjeta y ahí tienen el botón "Quiero cantar".'), h('div', { class: 'actions' }, button('Copiar enlace', () => void copyText(joinLink).then((ok) => toast(ok ? 'Enlace copiado' : 'No se pudo copiar', ok ? 'success' : 'error')), 'btn btn-sm'), button('Ver en grande', () => { window.open(`${location.pathname}#/deal`, '_blank', 'noopener'); }, 'btn btn-sm'), qrLink))),
     ),
   );
+  /* ---- Transmisión de audio a los jugadores (voz del animador + música + cantantes) ---- */
+  if (game.liveServer) side.appendChild(renderBroadcastPanel(game));
   void joinUrl(game).then((url) => {
     joinLink = url;
     qrLink.href = url;

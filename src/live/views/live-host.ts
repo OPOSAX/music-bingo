@@ -10,6 +10,7 @@ import { renderKaraokeHostPanel } from '../../concert/views/karaoke-host-panel.j
 import { LIVE_EVENTS, liveRoomId, type BingoClaimed, type LinkState, type LiveMetrics } from '../protocol.js';
 import { LiveHostPublisher, type DeviceLists } from '../publisher.js';
 import { liveSession, releaseLiveSessions, type LiveSession } from '../session.js';
+import { broadcasting } from './broadcast-panel.js';
 
 let publisher: LiveHostPublisher | null = null;
 let timers: ReturnType<typeof setInterval>[] = [];
@@ -23,7 +24,8 @@ export async function releaseLiveHost(): Promise<void> {
   const p = publisher;
   publisher = null;
   await p?.stop().catch(() => undefined);
-  releaseLiveSessions();
+  // Con la transmisión de la pantalla del anfitrión activa, sus sesiones Live deben seguir vivas.
+  if (!broadcasting()) releaseLiveSessions();
 }
 
 export async function renderLiveHost(root: HTMLElement, params: URLSearchParams): Promise<void> {

@@ -9,7 +9,7 @@ import { renderDeal } from './views/deal.js';
 import { renderJoin } from './views/join.js';
 import { renderHome, renderPlayerEntry } from './views/home.js';
 import { releasePlayer, renderHost } from './views/host.js';
-import { releaseBroadcast } from './live/views/broadcast-panel.js';
+import { broadcasting, releaseBroadcast, renderBroadcastPill } from './live/views/broadcast-panel.js';
 import { renderSetup } from './views/setup.js';
 import { releaseDj, renderDj } from './concert/views/dj.js';
 import { releaseSing, renderSing } from './concert/views/sing.js';
@@ -26,14 +26,14 @@ import { renderLibrary } from './library/views/library.js';
 const root = document.getElementById('app') as HTMLElement;
 
 async function render(route: Route): Promise<void> {
-  if (route.path !== '/host') {
-    releasePlayer();
-    void releaseBroadcast();
-  }
+  // La transmisión (cámara + voz + música) no se corta al cambiar de pantalla: sigue hasta pulsar "Detener".
+  // Mientras transmite, el reproductor y el karaoke tampoco se cierran (la música y los cantantes van en la mezcla).
+  if (route.path !== '/host' && !broadcasting()) releasePlayer();
+  renderBroadcastPill(route.path);
   if (route.path !== '/card' && route.path !== '/join') releaseCardSync();
   if (route.path !== '/dj') await releaseDj();
   if (!['/sing', '/card', '/join', '/play'].includes(route.path)) await releaseSing();
-  if (route.path !== '/host' && route.path !== '/live') releaseKaraokeWatch();
+  if (route.path !== '/host' && route.path !== '/live' && !broadcasting()) releaseKaraokeWatch();
   if (route.path !== '/live') await releaseLiveHost();
   root.classList.remove('host-layout'); // la pantalla del anfitrión usa dos columnas; el resto, una
   try {

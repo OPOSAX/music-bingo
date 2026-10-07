@@ -39,6 +39,24 @@ export function broadcasting(): boolean {
   return active !== null;
 }
 
+/** Aviso fijo "🔴 Transmitiendo" en las demás pantallas, con vuelta a la partida y Detener. */
+export function renderBroadcastPill(path: string): void {
+  let pill = document.getElementById('broadcast-pill');
+  if (!active || path === '/host') {
+    pill?.remove();
+    return;
+  }
+  if (pill) return;
+  pill = h(
+    'div',
+    { id: 'broadcast-pill', class: 'broadcast-pill' },
+    h('span', null, '🔴 Transmitiendo a los jugadores'),
+    button('Volver a la partida', () => { location.hash = '#/host'; }, 'btn btn-sm btn-primary'),
+    button('■ Detener', () => void releaseBroadcast().then(() => document.getElementById('broadcast-pill')?.remove()), 'btn btn-sm btn-danger'),
+  );
+  document.body.appendChild(pill);
+}
+
 export function renderBroadcastPanel(game: GameState): HTMLElement {
   const link = liveLinkOf(game);
   const settings = loadBroadcastSettings();
@@ -248,9 +266,21 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
       active = { mixer, publisher, offs, guestViewer };
       listeners.textContent = `👥 ${session.ack?.viewers ?? 0}`;
       setStatus(describe(mixer), true);
-      musicSilentSince = null;
-      musicWarned = false;
-      meterTimer = setInterval(() => {
+      startMeter();
+      toast('Transmisión iniciada: los jugadores ya te oyen', 'success');
+    } catch (err) {
+      await releaseBroadcast();
+      setStatus('⚪ Sin transmitir', false);
+      toast(`No se pudo transmitir: ${errorMessage(err)}`, 'error');
+    } finally {
+      startBtn.disabled = false;
+    }
+  };
+  const startMeter = () => {
+    musicSilentSince = null;
+    musicWarned = false;
+    if (meterTimer) clearInterval(meterTimer);
+    meterTimer = setInterval(() => {
         if (!active || !panel.isConnected) {
           if (meterTimer) clearInterval(meterTimer);
           return;
@@ -275,14 +305,6 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
           }
         }
       }, 100);
-      toast('Transmisión iniciada: los jugadores ya te oyen', 'success');
-    } catch (err) {
-      await releaseBroadcast();
-      setStatus('⚪ Sin transmitir', false);
-      toast(`No se pudo transmitir: ${errorMessage(err)}`, 'error');
-    } finally {
-      startBtn.disabled = false;
-    }
   };
   const stop = async () => {
     await releaseBroadcast();
@@ -300,7 +322,15 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
     active.mixer.setMicMuted(muted);
     muteBtn.textContent = muted ? '🎙 Activar mi micrófono' : '🎙 Silenciar mi micrófono';
   };
-  if (active) setStatus(describe(active.mixer), true); // la pantalla se volvió a pintar sin cortar la transmisión
+  if (active) {
+    // La pantalla se volvió a pintar (o se volvió de otra) sin cortar la transmisión: estado, medidores y cámara.
+    setStatus(describe(active.mixer), true);
+    startMeter();
+    if (active.mixer.cameraOn) {
+      camPreview.srcObject = active.mixer.stream;
+      camPreview.hidden = false;
+    }
+  }
   launcher = async (opts) => {
     if (opts.camera !== undefined) {
       camera.checked = opts.camera;

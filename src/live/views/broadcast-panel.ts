@@ -16,8 +16,16 @@ import { LiveViewer } from '../viewer.js';
 import { liveLinkOf } from './host-panel.js';
 
 let active: { mixer: BroadcastMixer; publisher: LiveHostPublisher; offs: (() => void)[]; guestViewer: LiveViewer | null } | null = null;
+let launcher: ((opts: { camera?: boolean }) => Promise<void>) | null = null;
+
+/** Arranca la transmisión desde fuera del panel (botón "🎥 Transmitir" de la cabecera): cámara + voz + música, un solo camino. */
+export async function startBroadcast(opts: { camera?: boolean } = {}): Promise<void> {
+  if (!launcher) throw new Error('El panel de transmisión no está en pantalla');
+  await launcher(opts);
+}
 
 export async function releaseBroadcast(): Promise<void> {
+  launcher = null;
   const a = active;
   active = null;
   if (!a) return;
@@ -46,9 +54,11 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
     h('option', { value: 'device' }, 'Entrada de audio (mezclador / loopback)'),
     h('option', { value: 'tab' }, 'Audio de esta pestaña (Spotify en este navegador)'),
   );
-  // Con biblioteca propia la música entra directa; si la partida es de Spotify, 'local' no está disponible.
-  musicSel.value = fromLibrary && (settings.musicSource === 'local' || settings.musicSource === 'none') ? 'local' : settings.musicSource === 'local' ? 'none' : settings.musicSource;
+  // Con biblioteca propia la música entra directa. Con Spotify, por defecto se captura el audio de esta pestaña
+  // (el navegador pide "Compartir audio"); si la captura llega muda, se avisa y se sugiere la biblioteca o un loopback.
+  musicSel.value = fromLibrary ? (settings.musicSource === 'local' || settings.musicSource === 'none' ? 'local' : settings.musicSource) : settings.musicSource === 'local' || settings.musicSource === 'none' ? 'tab' : settings.musicSource;
   settings.musicSource = musicSel.value as MusicSource;
+  const musicHint = h('p', { class: 'small muted' }, fromLibrary ? 'La música de la biblioteca entra directa en la transmisión.' : 'Partida con Spotify: al iniciar, el navegador pedirá compartir esta pestaña; marca "Compartir audio de la pestaña". Si no se oye música, usa Mi biblioteca (recomendado) o una entrada de audio (loopback / mezclador).');
   const musicDev = h('select', { class: 'input' }, h('option', { value: '' }, 'Entrada por defecto'));
   const micDb = h('input', { type: 'range', min: '-12', max: '24', step: '1', value: String(settings.micDb), class: 'volume' });
   const micDbLabel = h('span', { class: 'mix-value' }, fmtDb(settings.micDb));
@@ -88,6 +98,7 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
     h('label', { class: 'field mix-row' }, h('span', null, 'Mi voz'), micDb, micDbLabel),
     h('div', { class: 'row mix-row' }, h('span', { class: 'small muted' }, 'Nivel voz'), h('div', { class: 'level-meter' }, micMeter)),
     h('label', { class: 'field mix-row' }, h('span', null, 'Música'), musicSel),
+    musicHint,
     musicDevRow,
     h('label', { class: 'field mix-row' }, h('span', null, 'Volumen música'), musicDb, musicDbLabel),
     h('label', { class: 'field-check small' }, monitor, h('span', null, 'Escuchar la música y los cantantes también en este equipo')),
@@ -179,7 +190,15 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
     muteBtn.hidden = !live;
   };
 
+  const describe = (mixer: BroadcastMixer, musicOk = true) => {
+    const parts = ['voz'];
+    if (mixer.musicActive) parts.push(musicOk ? 'música' : 'música sin señal');
+    if (mixer.cameraOn) parts.push('cámara');
+    return `🔴 Transmitiendo ${parts.join(' + ')}`;
+  };
   let meterTimer: ReturnType<typeof setInterval> | null = null;
+  let musicSilentSince: number | null = null;
+  let musicWarned = false;
   const start = async () => {
     if (active) return;
     startBtn.disabled = true;
@@ -211,7 +230,7 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
         session.on(LIVE_EVENTS.playersCount, (p: { viewers: number }) => (listeners.textContent = `👥 ${p.viewers}`)),
         session.onState((s) => {
           if (!active) return;
-          if (s === 'LIVE') setStatus(`🔴 Transmitiendo${mixer.musicActive ? ' voz + música' : ' (solo voz)'}`, true);
+          if (s === 'LIVE') setStatus(describe(mixer), true);
           else if (s === 'RECONNECTING') setStatus('🟡 Reconectando…', true);
           else setStatus('🔴 Sin conexión con el servidor', true);
         }),
@@ -228,7 +247,9 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
       void guestViewer.start().catch(() => undefined);
       active = { mixer, publisher, offs, guestViewer };
       listeners.textContent = `👥 ${session.ack?.viewers ?? 0}`;
-      setStatus(`🔴 Transmitiendo${mixer.musicActive ? ' voz + música' : ' (solo voz)'}`, true);
+      setStatus(describe(mixer), true);
+      musicSilentSince = null;
+      musicWarned = false;
       meterTimer = setInterval(() => {
         if (!active || !panel.isConnected) {
           if (meterTimer) clearInterval(meterTimer);
@@ -236,6 +257,23 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
         }
         micMeter.style.width = `${Math.round(active.mixer.micLevel() * 100)}%`;
         mixMeter.style.width = `${Math.round(active.mixer.level() * 100)}%`;
+        // Captura muda (Spotify protegido, pestaña equivocada, loopback sin señal): avisar tras 8 s sin música.
+        if (active.mixer.musicActive && active.mixer.musicKind !== 'local') {
+          if (active.mixer.musicLevel() > 0.01) {
+            musicSilentSince = null;
+            if (musicWarned) {
+              musicWarned = false;
+              setStatus(describe(active.mixer), true);
+            }
+          } else {
+            musicSilentSince ??= Date.now();
+            if (!musicWarned && Date.now() - musicSilentSince > 8000) {
+              musicWarned = true;
+              setStatus(describe(active.mixer, false), true);
+              toast('La música no está llegando a la transmisión. Si es Spotify, el navegador no deja capturarla: usa Mi biblioteca o una entrada de audio (loopback / mezclador).', 'error');
+            }
+          }
+        }
       }, 100);
       toast('Transmisión iniciada: los jugadores ya te oyen', 'success');
     } catch (err) {
@@ -262,7 +300,16 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
     active.mixer.setMicMuted(muted);
     muteBtn.textContent = muted ? '🎙 Activar mi micrófono' : '🎙 Silenciar mi micrófono';
   };
-  if (active) setStatus('🔴 Transmitiendo', true); // la pantalla se volvió a pintar sin cortar la transmisión
+  if (active) setStatus(describe(active.mixer), true); // la pantalla se volvió a pintar sin cortar la transmisión
+  launcher = async (opts) => {
+    if (opts.camera !== undefined) {
+      camera.checked = opts.camera;
+      persist();
+      camRow.hidden = !settings.camera;
+    }
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!active) await start();
+  };
   return panel;
 }
 

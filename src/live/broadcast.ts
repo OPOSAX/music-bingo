@@ -64,7 +64,10 @@ export class BroadcastMixer {
   private readonly monitorBus: GainNode;
   private readonly karaokeTap: GainNode;
   private readonly musicGain: GainNode;
+  /** Música hacia el monitor local: se corta con la captura de pestaña (esa música ya suena sola y volvería a entrar: eco). */
+  private readonly musicMonitor: GainNode;
   private readonly analyser: AnalyserNode;
+  private musicAnalyser!: AnalyserNode;
   private readonly buf: Float32Array<ArrayBuffer>;
   private mic: { stream: MediaStream; chain: VoiceChain } | null = null;
   private camera: MediaStream | null = null;
@@ -80,6 +83,7 @@ export class BroadcastMixer {
     this.monitorBus = ctx.createGain();
     this.karaokeTap = ctx.createGain();
     this.musicGain = ctx.createGain();
+    this.musicMonitor = ctx.createGain();
     this.analyser = ctx.createAnalyser();
     this.analyser.fftSize = 1024;
     this.buf = new Float32Array(this.analyser.fftSize) as Float32Array<ArrayBuffer>;
@@ -93,7 +97,10 @@ export class BroadcastMixer {
     this.bus.connect(limiter).connect(this.destination);
     limiter.connect(this.analyser);
     this.musicGain.connect(this.bus);
-    this.musicGain.connect(this.monitorBus);
+    this.musicAnalyser = ctx.createAnalyser();
+    this.musicAnalyser.fftSize = 1024;
+    this.musicGain.connect(this.musicAnalyser);
+    this.musicGain.connect(this.musicMonitor).connect(this.monitorBus);
     // Los cantantes ya suenan por el PA desde el panel de karaoke: aquí solo entran en la transmisión.
     this.karaokeTap.connect(this.bus);
     this.monitorBus.connect(ctx.destination);
@@ -163,6 +170,7 @@ export class BroadcastMixer {
   async setMusic(source: MusicSource, deviceId: string, db: number): Promise<void> {
     this.closeMusic();
     this.musicGain.gain.value = dbToGain(db);
+    this.musicMonitor.gain.value = source === 'tab' ? 0 : 1;
     if (source === 'none') return;
     if (source === 'local') {
       const node = localPlayer().audioSource(this.ctx);
@@ -222,6 +230,22 @@ export class BroadcastMixer {
 
   micLevel(): number {
     return this.mic?.chain.level() ?? 0;
+  }
+
+  /** Nivel de la música que entra en la mezcla (0..1): sirve para detectar una captura muda (p. ej. Spotify protegido). */
+  musicLevel(): number {
+    this.musicAnalyser.getFloatTimeDomainData(this.buf);
+    let peak = 0;
+    for (const v of this.buf) peak = Math.max(peak, Math.abs(v));
+    return Math.min(1, peak);
+  }
+
+  get musicKind(): MusicSource {
+    return this.music?.kind ?? 'none';
+  }
+
+  get cameraOn(): boolean {
+    return this.camera !== null;
   }
 
   dispose(): void {

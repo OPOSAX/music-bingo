@@ -67,8 +67,10 @@ export function createLiveHostVideo(session: LiveSession, options: LiveHostVideo
   const unlock = () => {
     unlocked = true;
     video.muted = false;
+    guestVideo.muted = false;
     overlay.hidden = true;
     void video.play().catch(() => undefined);
+    void guestVideo.play().catch(() => undefined);
   };
   const tryPlay = () => {
     if (!video.srcObject) return;
@@ -103,10 +105,14 @@ export function createLiveHostVideo(session: LiveSession, options: LiveHostVideo
       tryPlay();
     },
     onGuest: (stream, name) => {
-      guest.hidden = !stream;
+      const hasVideo = !!stream && stream.getVideoTracks().length > 0;
+      guest.hidden = !hasVideo; // solo voz: no hay recuadro, pero el audio suena igual
       guestVideo.srcObject = stream;
       guestName.textContent = stream ? `🎤 ${name || 'Invitado'}` : '';
-      wrap.classList.toggle('has-guest', !!stream);
+      wrap.classList.toggle('has-guest', hasVideo);
+      guestVideo.muted = !unlocked;
+      // Sin transmisión del animador, la voz del invitado necesita el mismo desbloqueo de audio del navegador.
+      if (stream && !unlocked && !liveState) overlay.hidden = false;
       if (stream) void guestVideo.play().catch(() => undefined);
     },
     onLive: (state) => {

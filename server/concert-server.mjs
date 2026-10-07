@@ -24,7 +24,7 @@ import { Server as SocketServer } from 'socket.io';
 import { ConcertRoom } from '../public/js/concert/concert-room.js';
 import { SLOT_STATES, isCrowdMicAppData, readConfig } from '../public/js/concert/protocol.js';
 import { assertCanConsume, attachConcertHandlers } from '../public/js/concert/server-handlers.js';
-import { attachLiveHandlers, createLiveState, iceServersFromEnv, liveSummary, registerGuestVideo } from './live.mjs';
+import { announceGuestAudio, attachLiveHandlers, createLiveState, iceServersFromEnv, liveSummary, registerGuestVideo, retireGuestAudio } from './live.mjs';
 import { hashToken, identify } from './platform/auth.mjs';
 import { createPlatformApi } from './platform/api.mjs';
 import { createLibraryApi } from './platform/library.mjs';
@@ -203,7 +203,15 @@ export async function startServer(options = {}) {
                 const p = entry?.concert.participants.get(participantId);
                 if (p?.socketId) io.to(p.socketId).emit(event, payload);
             },
-            toOperators: (event, payload) => io.to(opsRoom(roomId)).emit(event, payload),
+            toOperators: (event, payload) => {
+                io.to(opsRoom(roomId)).emit(event, payload);
+                // Voz del invitado hacia los jugadores: se anuncia al pasar a EN VIVO y se retira al salir de ese estado.
+                if (!entry) return;
+                const live = (entry.live ??= createLiveState());
+                const p = entry.concert.participants.get(payload?.participantId);
+                if (event === 'concert:live' && p?.producerId) announceGuestAudio({ io, roomId, live, producerId: p.producerId, participantId: p.participantId, name: p.name });
+                else if (event === 'concert:participant-updated' && payload?.state !== 'LIVE') retireGuestAudio({ io, roomId, live, participantId: payload.participantId });
+            },
         };
         const concert = new ConcertRoom(roomId, concertConfig, media, emitter, { disconnectGraceMs: Number(env.CONCERT_GRACE_MS) || 30000 });
         entry = { btalk, concert, sockets: 0 };

@@ -5,7 +5,7 @@
 
 import { BTalkConsumerAdapter } from '../concert/consumer.js';
 import { loadMediasoupDevice, makeTransportSignaling } from '../concert/session.js';
-import { LIVE_EVENTS, type LinkState, type LiveProducerInfo, type LiveState } from './protocol.js';
+import { LIVE_EVENTS, type LinkState, type LiveProducerInfo, type LiveState, type MediaKind } from './protocol.js';
 import type { LiveSession } from './session.js';
 
 export const LIVE_TRANSPORT_NAMES = {
@@ -64,6 +64,7 @@ export class LiveViewer {
         if (this.options.only === 'guest') return;
         if (!this.live) this.live = { active: true, startedAt: Date.now(), producers: [] };
         this.live.producers.push(p);
+        if (p.kind === 'audio') this.syncGuestAudio();
         void this.consume(p);
       }),
       this.session.on(LIVE_EVENTS.producerRemoved, (p: { producerId: string }) => this.dropGuest(p.producerId)),
@@ -82,34 +83,64 @@ export class LiveViewer {
     if (this.options.only !== 'guest') await this.apply(ack.live.active ? ack.live : null);
   }
 
-  private guestProducerId: string | null = null;
+  /** Producers del invitado por tipo (vídeo: cámara; audio: su voz, solo cuando el animador no transmite). */
+  private readonly guestProducers = new Map<MediaKind, string>();
+  private readonly guestAudioPending = new Map<string, LiveProducerInfo>();
+
+  /** ¿La voz del invitado llega por la mezcla del animador? Entonces no se consume aparte (se oiría doble). */
+  private get hostCarriesGuestAudio(): boolean {
+    return !!this.live?.active && this.options.only !== 'guest' && this.live.producers.some((p) => p.kind === 'audio');
+  }
 
   /** Un invitado a la vez: el último que enciende la cámara sustituye al anterior. */
   private async consumeGuest(p: LiveProducerInfo): Promise<void> {
     if (this.stopped || this.consumed.has(p.producerId)) return;
+    if (p.kind === 'audio') {
+      if (this.options.only === 'guest') return; // el animador ya oye al invitado por su PA/mezcla
+      this.guestAudioPending.set(p.producerId, p);
+      if (this.hostCarriesGuestAudio) return;
+    }
     this.consumed.add(p.producerId);
     try {
       const adapter = await this.ensureAdapter();
       const single = await adapter.consume(p.producerId);
-      for (const old of this.guestStream.getTracks()) this.guestStream.removeTrack(old);
+      const previous = this.guestProducers.get(p.kind);
+      if (previous && previous !== p.producerId) this.adapter?.close(previous);
+      for (const old of this.guestStream.getTracks()) if (old.kind === p.kind) this.guestStream.removeTrack(old);
       for (const t of single.getTracks()) this.guestStream.addTrack(t);
-      this.guestProducerId = p.producerId;
-      this.guestName = p.name ?? '';
+      this.guestProducers.set(p.kind, p.producerId);
+      this.guestName = p.name ?? this.guestName;
       this.cb.onGuest?.(this.guestStream, this.guestName);
     } catch (err) {
       this.consumed.delete(p.producerId);
-      console.warn('No se pudo recibir la cámara del invitado', err);
+      console.warn('No se pudo recibir al invitado', p.kind, err);
     }
   }
 
   private dropGuest(producerId: string): void {
     this.consumed.delete(producerId);
+    this.guestAudioPending.delete(producerId);
     this.adapter?.close(producerId);
-    if (this.guestProducerId !== producerId) return;
-    this.guestProducerId = null;
-    for (const old of this.guestStream.getTracks()) this.guestStream.removeTrack(old);
-    this.cb.onGuest?.(null, this.guestName);
-    this.guestName = '';
+    const kind = [...this.guestProducers].find(([, id]) => id === producerId)?.[0];
+    if (!kind) return;
+    this.guestProducers.delete(kind);
+    for (const old of this.guestStream.getTracks()) if (old.kind === kind) this.guestStream.removeTrack(old);
+    if (this.guestProducers.size === 0) {
+      this.cb.onGuest?.(null, this.guestName);
+      this.guestName = '';
+    } else this.cb.onGuest?.(this.guestStream, this.guestName);
+  }
+
+  /** Al empezar o terminar la transmisión del animador: la voz del invitado cambia de camino (mezcla ↔ directa). */
+  private syncGuestAudio(): void {
+    const current = this.guestProducers.get('audio');
+    if (this.hostCarriesGuestAudio) {
+      if (current) this.dropGuest(current);
+      return;
+    }
+    if (current) return;
+    const pending = [...this.guestAudioPending.values()].at(-1);
+    if (pending) void this.consumeGuest(pending);
   }
 
   private async ensureAdapter(): Promise<BTalkConsumerAdapter> {
@@ -123,10 +154,12 @@ export class LiveViewer {
   private async apply(state: LiveState | null): Promise<void> {
     if (!state || !state.active) {
       this.clear();
+      this.syncGuestAudio();
       return;
     }
     this.live = state;
     this.cb.onLive?.(state);
+    this.syncGuestAudio();
     for (const p of state.producers) await this.consume(p);
   }
 
@@ -154,7 +187,8 @@ export class LiveViewer {
     this.adapter = null;
     this.consumed.clear();
     for (const old of this.stream.getTracks()) this.stream.removeTrack(old);
-    if (this.guestProducerId) this.dropGuest(this.guestProducerId);
+    for (const id of [...this.guestProducers.values()]) this.dropGuest(id);
+    this.guestAudioPending.clear();
     for (const g of state.guests ?? []) void this.consumeGuest(g);
     if (this.options.only !== 'guest') await this.apply(state.active ? state : null);
   }

@@ -60,7 +60,7 @@ function liveInfo(live) {
     active: live.active,
     startedAt: live.startedAt,
     producers: [...live.producers.entries()].map(([producerId, p]) => ({ producerId, kind: p.kind, paused: p.paused })),
-    guests: [...live.guests.entries()].map(([producerId, g]) => ({ producerId, kind: 'video', paused: false, source: 'live-guest', name: g.name })),
+    guests: [...live.guests.entries()].map(([producerId, g]) => ({ producerId, kind: g.kind ?? 'video', paused: false, source: 'live-guest', name: g.name })),
   };
 }
 
@@ -70,12 +70,31 @@ function liveInfo(live) {
  */
 export function registerGuestVideo({ io, roomId, live, producer, socketId, participantId, name }) {
   const allRoom = `live:${roomId}`;
-  live.guests.set(producer.id, { socketId, participantId, name });
+  live.guests.set(producer.id, { socketId, participantId, name, kind: 'video' });
   io.to(allRoom).emit(E.producerAdded, { producerId: producer.id, kind: 'video', paused: false, source: 'live-guest', name });
   producer.observer.once('close', () => {
     if (!live.guests.delete(producer.id)) return;
     io.to(allRoom).emit(E.producerRemoved, { producerId: producer.id, source: 'live-guest' });
   });
+}
+
+/**
+ * Voz del invitado directa a los jugadores: mientras su micrófono está EN VIVO, su producer de audio (crowd-mic)
+ * se anuncia como 'live-guest'. Así se le oye aunque el animador no esté transmitiendo; cuando el animador
+ * transmite, los jugadores lo descartan (la voz ya va en la mezcla) para no oírlo dos veces.
+ */
+export function announceGuestAudio({ io, roomId, live, producerId, participantId, name }) {
+  if (!producerId || live.guests.has(producerId)) return;
+  live.guests.set(producerId, { participantId, name, kind: 'audio' });
+  io.to(`live:${roomId}`).emit(E.producerAdded, { producerId, kind: 'audio', paused: false, source: 'live-guest', name });
+}
+
+export function retireGuestAudio({ io, roomId, live, participantId }) {
+  for (const [producerId, g] of [...live.guests]) {
+    if (g.kind !== 'audio' || g.participantId !== participantId) continue;
+    live.guests.delete(producerId);
+    io.to(`live:${roomId}`).emit(E.producerRemoved, { producerId, source: 'live-guest' });
+  }
 }
 
 function metricsOf(live) {
@@ -226,7 +245,8 @@ export function attachLiveHandlers(ctx) {
   socket.on(E.consume, async (payload, ack) => {
     const { transportId, producerId, rtpCapabilities } = payload || {};
     const found = findProducer(btalk, producerId);
-    if (!found || !['live-host', 'live-guest'].includes(found.producer.appData?.source)) return fail(ack, 'unknown-producer', 'Producer desconocido');
+    const src = found?.producer.appData?.source;
+    if (!found || !(src === 'live-host' || src === 'live-guest' || (src === 'crowd-mic' && live.guests.has(producerId)))) return fail(ack, 'unknown-producer', 'Producer desconocido');
     try {
       const params = await btalk.consume(socket.id, transportId, producerId, rtpCapabilities);
       if (!params) return fail(ack, 'consume', 'No se pudo consumir (capacidades RTP)');

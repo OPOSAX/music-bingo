@@ -35,7 +35,8 @@ export function createLiveHostVideo(session: LiveSession, options: LiveHostVideo
   const cta = button(options.ctaLabel ?? '🔊 Entrar a Bingo Hit', () => unlock(), 'btn btn-primary btn-lg live-cta');
   const overlay = h('div', { class: 'live-overlay', hidden: true }, cta);
   const reactionsLayer = h('div', { class: 'reaction-layer' });
-  const frame = h('div', { class: 'live-frame' }, video, placeholder, reactionsLayer, overlay, h('div', { class: 'live-topbar' }, badge, status, viewers));
+  const audioOnly = h('div', { class: 'live-audio-only', hidden: true }, h('div', { class: 'live-placeholder-icon' }, '🔊'), h('p', null, 'Audio en directo'));
+  const frame = h('div', { class: 'live-frame' }, video, placeholder, audioOnly, reactionsLayer, overlay, h('div', { class: 'live-topbar' }, badge, status, viewers));
   const bar = h('div', { class: 'live-reactions' });
   let lastReaction = 0;
   for (const emoji of REACTIONS) {
@@ -92,6 +93,7 @@ export function createLiveHostVideo(session: LiveSession, options: LiveHostVideo
   const viewer = new LiveViewer(session, {
     onStream: (stream) => {
       if (video.srcObject !== stream) video.srcObject = stream;
+      audioOnly.hidden = stream.getVideoTracks().length > 0; // transmisión solo de audio (mesa de mezcla del anfitrión)
       tryPlay();
     },
     onLive: (state) => {
@@ -101,6 +103,7 @@ export function createLiveHostVideo(session: LiveSession, options: LiveHostVideo
       placeholder.hidden = !!state;
       wrap.classList.toggle('is-live', !!state);
       if (!state) {
+        audioOnly.hidden = true;
         video.srcObject = null;
         overlay.hidden = true;
         wrap.classList.remove('live-floating');

@@ -500,3 +500,15 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
   .host-col-side { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; }
 }
 .input-sm { padding: 4px 8px; font-size: 0.85rem; width: auto; }
+
+/* Transmisión solo de audio: el marco del vídeo muestra un indicador en vez de negro */
+.live-audio-only { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text); background: radial-gradient(circle at 50% 40%, #233 0%, #0d0d0d 70%); }
+.live-audio-only[hidden] { display: none; }
+.live-audio-only p { margin: 0; color: var(--muted); }
+/* Panel de transmisión del anfitrión */
+.broadcast-panel .mix-row { display: flex; flex-direction: row; align-items: center; gap: 0.75rem; margin: 0.4rem 0; }
+.broadcast-panel .mix-row > span:first-child { min-width: 9rem; }
+.broadcast-panel .mix-row input[type='range'] { flex: 1; }
+.broadcast-panel .mix-row select { flex: 1; min-width: 0; }
+.broadcast-panel .mix-value { min-width: 4.5rem; text-align: right; font-variant-numeric: tabular-nums; }
+.broadcast-panel .level-meter { max-width: 100%; }

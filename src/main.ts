@@ -9,6 +9,7 @@ import { renderDeal } from './views/deal.js';
 import { renderJoin } from './views/join.js';
 import { renderHome, renderPlayerEntry } from './views/home.js';
 import { releasePlayer, renderHost } from './views/host.js';
+import { releaseBroadcast } from './live/views/broadcast-panel.js';
 import { renderSetup } from './views/setup.js';
 import { releaseDj, renderDj } from './concert/views/dj.js';
 import { releaseSing, renderSing } from './concert/views/sing.js';
@@ -24,7 +25,10 @@ import { renderLogin } from './platform/views/login.js';
 const root = document.getElementById('app') as HTMLElement;
 
 async function render(route: Route): Promise<void> {
-  if (route.path !== '/host') releasePlayer();
+  if (route.path !== '/host') {
+    releasePlayer();
+    void releaseBroadcast();
+  }
   if (route.path !== '/card' && route.path !== '/join') releaseCardSync();
   if (route.path !== '/dj') await releaseDj();
   if (!['/sing', '/card', '/join', '/play'].includes(route.path)) await releaseSing();

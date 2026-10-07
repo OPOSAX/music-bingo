@@ -124,8 +124,20 @@ export class LiveHostPublisher {
     return this.enqueue(() => this.publish());
   }
 
+  /** Flujo externo (p. ej. la mesa de mezcla del anfitrión): se publica tal cual, sin abrir cámara ni micrófono. */
+  private external: MediaStream | null = null;
+
+  useStream(stream: MediaStream | null): void {
+    this.external = stream;
+    if (stream) {
+      this.stream = stream;
+      this.setupMeter(stream);
+    }
+  }
+
   private async publish(): Promise<void> {
-    if (!this.stream || this.stream.getTracks().some((t) => t.readyState === 'ended')) await this.openDevices();
+    if (this.external) this.stream = this.external;
+    else if (!this.stream || this.stream.getTracks().some((t) => t.readyState === 'ended')) await this.openDevices();
     const stream = this.stream as MediaStream;
     const ack = await this.session.connect();
     if (ack.role !== 'host') throw new Error('Este token no es de animador');
@@ -187,7 +199,7 @@ export class LiveHostPublisher {
     this.producers.clear();
     this.adapter?.closeTransport();
     this.adapter = null;
-    this.stream?.getTracks().forEach((t) => t.stop());
+    if (!this.external) this.stream?.getTracks().forEach((t) => t.stop()); // las pistas externas las gestiona quien las creó
     this.stream = null;
     this.analyser = null;
     this.lastBytes = null;

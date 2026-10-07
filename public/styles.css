@@ -473,12 +473,30 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
 .continuous-check { margin-top: 8px; display: flex; align-items: center; gap: 8px; color: var(--muted); }
 
 /* Mezcla de voz y música (panel "Quieren cantar" del anfitrión) */
-.karaoke-mix { margin: 0.75rem 0; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
+.karaoke-mix { margin: 0.75rem 0; padding: 0.5rem 0.75rem; border: 1px solid var(--panel-2); border-radius: 12px; background: var(--panel-2); }
 .karaoke-mix summary { cursor: pointer; font-weight: 600; }
-.karaoke-mix .mix-row { display: flex; align-items: center; gap: 0.75rem; margin: 0.5rem 0; }
+.karaoke-mix .mix-row { display: flex; flex-direction: row; align-items: center; gap: 0.75rem; margin: 0.5rem 0; }
 .karaoke-mix .mix-row > span:first-child { min-width: 11rem; }
 .karaoke-mix .mix-row input[type='range'] { flex: 1; }
 .karaoke-mix .mix-row select { max-width: 12rem; }
 .karaoke-mix .mix-value { min-width: 4.5rem; text-align: right; font-variant-numeric: tabular-nums; }
 .karaoke-mix .level-meter { max-width: 100%; }
 @media (max-width: 600px) { .karaoke-mix .mix-row { flex-wrap: wrap; } .karaoke-mix .mix-row > span:first-child { min-width: 100%; } }
+
+/* Pantalla del anfitrión: dos columnas en pantallas anchas para conducir sin desplazar la página */
+.container.host-layout { max-width: 1480px; }
+.host-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 20px; align-items: start; }
+.host-col { min-width: 0; }
+.host-col .panel { margin: 14px 0; }
+.host-settings { margin: 14px 0; }
+.host-settings > summary { cursor: pointer; font-weight: 600; }
+.host-settings > .panel { margin: 12px 0 0; padding: 0; box-shadow: none; background: none; }
+.host-settings > .panel + .panel { border-top: 1px solid var(--panel-2); padding-top: 12px; }
+.host-layout .leaderboard { max-height: 46vh; overflow: auto; }
+.host-layout .history { max-height: 240px; }
+.host-layout .host-qr { width: min(60vw, 160px); }
+@media (min-width: 1100px) {
+  .host-grid { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+  .host-col-side { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; }
+}
+.input-sm { padding: 4px 8px; font-size: 0.85rem; width: auto; }

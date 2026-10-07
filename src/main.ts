@@ -30,6 +30,7 @@ async function render(route: Route): Promise<void> {
   if (!['/sing', '/card', '/join', '/play'].includes(route.path)) await releaseSing();
   if (route.path !== '/host' && route.path !== '/live') releaseKaraokeWatch();
   if (route.path !== '/live') await releaseLiveHost();
+  root.classList.remove('host-layout'); // la pantalla del anfitrión usa dos columnas; el resto, una
   try {
     switch (route.path) {
       case '/':

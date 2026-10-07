@@ -70,7 +70,7 @@ function renderPlatformPlay(root: HTMLElement, eventId: string, url: string, acc
   });
   if (access.waiting && access.startsAt) {
     const panel = h('section', { class: 'panel center' }, h('h1', null, '✅ Tu tarjeta está lista'), h('p', { class: 'muted' }, `${cards.length} tarjeta(s) · ${access.event?.name ?? ''}`), h('p', { class: 'muted small' }, 'Bingo Hit comienza en'), h('div', { class: 'countdown-clock' }, '--:--:--'));
-    const enter = button('ENTRAR', () => renderPlayerCards(root, cards, name, { liveEvent: eventId, liveUrl: access.live?.streaming ? url : undefined, karaoke: { url, room: liveRoomId(eventId) } }), 'btn btn-primary btn-xl');
+    const enter = button('ENTRAR', () => renderPlayerCards(root, cards, name, { liveEvent: eventId, liveUrl: access.live?.streaming ? url : undefined, liveHideWhenIdle: access.live?.expected === false, karaoke: { url, room: liveRoomId(eventId) } }), 'btn btn-primary btn-xl');
     panel.appendChild(h('div', { class: 'actions center' }, enter, button('Ver el evento', () => navigate(`/event?e=${encodeURIComponent(eventId)}`), 'btn')));
     root.appendChild(panel);
     const clock = panel.querySelector('.countdown-clock') as HTMLElement;
@@ -83,7 +83,7 @@ function renderPlatformPlay(root: HTMLElement, eventId: string, url: string, acc
     const timer = setInterval(() => (panel.isConnected ? tick() : clearInterval(timer)), 1000);
     return;
   }
-  renderPlayerCards(root, cards, name, { liveEvent: eventId, liveUrl: access.live?.streaming ? url : undefined, karaoke: { url, room: liveRoomId(eventId) } });
+  renderPlayerCards(root, cards, name, { liveEvent: eventId, liveUrl: access.live?.streaming ? url : undefined, liveHideWhenIdle: access.live?.expected === false, karaoke: { url, room: liveRoomId(eventId) } });
 }
 
 /** Flujo previo a la plataforma: la partida (cfg) llega por el plano de juego del servidor Live. */

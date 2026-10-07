@@ -13,6 +13,8 @@ export interface LiveHostVideoOptions {
   ctaLabel?: string;
   /** Activa el vídeo flotante cuando el jugador baja hasta el cartón. */
   floating?: boolean;
+  /** Oculta el marco mientras no haya transmisión ni invitado (eventos presenciales). */
+  hideWhenIdle?: boolean;
   onWinner?(w: WinnerAnnouncement): void;
 }
 
@@ -63,6 +65,11 @@ export function createLiveHostVideo(session: LiveSession, options: LiveHostVideo
   const wrap = h('div', { class: 'live-video-wrap' }, sentinel, frame, bar);
   let unlocked = false;
   let liveState: LiveState | null = null;
+  let guestOn = false;
+  const syncVisibility = () => {
+    if (options.hideWhenIdle) wrap.hidden = !liveState && !guestOn;
+  };
+  syncVisibility();
 
   const unlock = () => {
     unlocked = true;
@@ -106,7 +113,11 @@ export function createLiveHostVideo(session: LiveSession, options: LiveHostVideo
     },
     onGuest: (stream, name) => {
       const hasVideo = !!stream && stream.getVideoTracks().length > 0;
+      guestOn = !!stream;
       guest.hidden = !hasVideo; // solo voz: no hay recuadro, pero el audio suena igual
+      if (hasVideo) placeholder.hidden = true;
+      else if (!liveState) placeholder.hidden = false;
+      syncVisibility();
       guestVideo.srcObject = stream;
       guestName.textContent = stream ? `🎤 ${name || 'Invitado'}` : '';
       wrap.classList.toggle('has-guest', hasVideo);
@@ -121,6 +132,7 @@ export function createLiveHostVideo(session: LiveSession, options: LiveHostVideo
       badge.className = `live-badge ${state ? 'live-on' : 'live-off'}`;
       placeholder.hidden = !!state;
       wrap.classList.toggle('is-live', !!state);
+      syncVisibility();
       if (!state) {
         audioOnly.hidden = true;
         video.srcObject = null;

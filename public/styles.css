@@ -549,3 +549,33 @@ code { background: var(--panel-2); padding: 2px 6px; border-radius: 6px; font-si
 .broadcast-guest { margin-top: 8px; }
 .broadcast-guest video { width: 100%; max-width: 320px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; background: #000; display: block; }
 .broadcast-cam { width: 100%; max-width: 320px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; background: #000; display: block; margin-top: 6px; }
+
+/* Cartón de bingo del jugador: aspecto de tarjeta de papel con cabecera, cuadrícula y sello al marcar */
+.bingo-card { --paper: #fff7e4; --ink: #2b1d05; --rule: #d9c69a; --gold: #d4a53a; background: var(--paper); color: var(--ink); border: 3px solid var(--gold); border-radius: 14px; padding: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.6); margin: 10px 0; }
+.bingo-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 4px 6px; border-bottom: 2px dashed var(--rule); margin-bottom: 6px; }
+.bingo-brand { font-weight: 900; letter-spacing: 0.08em; font-size: 0.95rem; }
+.bingo-label { font-size: 0.8rem; color: #6b5422; font-weight: 700; }
+.bingo-letters { display: grid; gap: 0; margin-bottom: 2px; }
+.bingo-letters span { text-align: center; font-weight: 900; font-size: 1.4rem; color: #fff; background: linear-gradient(180deg, #e3b94f, #b8862a); border: 1px solid #a3761f; padding: 2px 0; letter-spacing: 0.05em; }
+.bingo-letters span:first-child { border-radius: 8px 0 0 0; }
+.bingo-letters span:last-child { border-radius: 0 8px 0 0; }
+.bingo-card .card-grid { gap: 0; margin: 0; border: 2px solid var(--gold); border-radius: 0 0 8px 8px; overflow: hidden; background: var(--rule); }
+.bingo-card .cell { background: var(--paper); color: var(--ink); border: 1px solid var(--rule); border-radius: 0; min-height: 76px; position: relative; padding: 6px 4px; }
+.bingo-card .cell-title { color: var(--ink); font-size: 0.82rem; }
+.bingo-card .cell-sub { color: #7a6336; }
+.bingo-card .cell.free { background: #f3e4b8; }
+.bingo-card .cell-free { color: #a3761f; }
+.bingo-card .card-grid.interactive .cell:not(.free):hover { border-color: var(--gold); background: #fff1cf; }
+/* Marcado: sello de tinta (círculo) sobre la casilla, con el texto aún legible */
+.bingo-card .cell.marked { background: var(--paper); border-color: var(--rule); color: var(--ink); }
+.bingo-card .cell.marked::before { content: ''; position: absolute; inset: 8%; border-radius: 50%; background: radial-gradient(circle at 40% 35%, rgba(29, 185, 84, 0.92), rgba(18, 130, 58, 0.85) 70%); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.25); opacity: 0.9; transform: rotate(-6deg); }
+.bingo-card .cell.marked .cell-title, .bingo-card .cell.marked .cell-sub, .bingo-card .cell.marked .cell-free { position: relative; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+.bingo-card .cell.in-line { box-shadow: inset 0 0 0 3px var(--line); }
+.bingo-card .cell.marked.in-line::before { background: radial-gradient(circle at 40% 35%, rgba(62, 166, 255, 0.95), rgba(25, 110, 190, 0.9) 70%); }
+@media (max-width: 600px) {
+  .bingo-card { padding: 8px; }
+  .bingo-card .cell { min-height: 66px; }
+  .bingo-card.size-5 .cell { min-height: 58px; padding: 4px 2px; }
+  .bingo-card.size-5 .cell-title { font-size: 0.68rem; }
+  .bingo-letters span { font-size: 1.15rem; }
+}

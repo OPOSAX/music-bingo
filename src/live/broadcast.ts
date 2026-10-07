@@ -27,9 +27,12 @@ export interface BroadcastSettings {
   musicDb: number;
   /** Escuchar música y cantantes también por este equipo. */
   monitor: boolean;
+  /** Emitir también la cámara del animador. */
+  camera: boolean;
+  cameraId: string;
 }
 
-export const DEFAULT_BROADCAST: BroadcastSettings = { micId: '', micDb: 6, musicSource: 'none', musicDeviceId: '', musicDb: 0, monitor: true };
+export const DEFAULT_BROADCAST: BroadcastSettings = { micId: '', micDb: 6, musicSource: 'none', musicDeviceId: '', musicDb: 0, monitor: true, camera: false, cameraId: '' };
 
 const KEY = 'live:broadcast';
 
@@ -64,6 +67,7 @@ export class BroadcastMixer {
   private readonly analyser: AnalyserNode;
   private readonly buf: Float32Array<ArrayBuffer>;
   private mic: { stream: MediaStream; chain: VoiceChain } | null = null;
+  private camera: MediaStream | null = null;
   private music: { stream: MediaStream | null; source: AudioNode; kind: MusicSource } | null = null;
   micMuted = false;
 
@@ -110,6 +114,26 @@ export class BroadcastMixer {
     chain.output.connect(this.bus);
     this.mic = { stream, chain };
     this.applyMicMute();
+  }
+
+  /** Cámara del animador: su pista de vídeo se añade al flujo que se publica (antes de iniciar la transmisión). */
+  async setCamera(deviceId: string): Promise<MediaStream> {
+    this.closeCamera();
+    const video: MediaTrackConstraints = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } };
+    if (deviceId) video.deviceId = { exact: deviceId };
+    const stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+    for (const t of stream.getVideoTracks()) this.stream.addTrack(t);
+    this.camera = stream;
+    return stream;
+  }
+
+  closeCamera(): void {
+    if (!this.camera) return;
+    for (const t of this.camera.getVideoTracks()) {
+      this.stream.removeTrack(t);
+      t.stop();
+    }
+    this.camera = null;
   }
 
   setMicDb(db: number): void {
@@ -203,6 +227,7 @@ export class BroadcastMixer {
   dispose(): void {
     this.closeMic();
     this.closeMusic();
+    this.closeCamera();
     removeKaraokeTap(this.karaokeTap);
     this.karaokeTap.disconnect();
     this.musicGain.disconnect();

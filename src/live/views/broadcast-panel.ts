@@ -12,15 +12,17 @@ import { BroadcastMixer, loadBroadcastSettings, saveBroadcastSettings, type Musi
 import { LIVE_EVENTS } from '../protocol.js';
 import { LiveHostPublisher } from '../publisher.js';
 import { liveSession } from '../session.js';
+import { LiveViewer } from '../viewer.js';
 import { liveLinkOf } from './host-panel.js';
 
-let active: { mixer: BroadcastMixer; publisher: LiveHostPublisher; offs: (() => void)[] } | null = null;
+let active: { mixer: BroadcastMixer; publisher: LiveHostPublisher; offs: (() => void)[]; guestViewer: LiveViewer | null } | null = null;
 
 export async function releaseBroadcast(): Promise<void> {
   const a = active;
   active = null;
   if (!a) return;
   a.offs.forEach((off) => off());
+  a.guestViewer?.stop();
   await a.publisher.stop().catch(() => undefined);
   a.mixer.dispose();
 }
@@ -53,6 +55,16 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
   const musicDb = h('input', { type: 'range', min: '-30', max: '12', step: '1', value: String(settings.musicDb), class: 'volume' });
   const musicDbLabel = h('span', { class: 'mix-value' }, fmtDb(settings.musicDb));
   const monitor = h('input', { type: 'checkbox', checked: settings.monitor });
+  const camera = h('input', { type: 'checkbox', checked: settings.camera });
+  const camSel = h('select', { class: 'input' }, h('option', { value: '' }, 'Cámara por defecto'));
+  const camPreview = h('video', { class: 'broadcast-cam', autoplay: true, playsInline: true, muted: true, hidden: true });
+  camPreview.setAttribute('playsinline', '');
+  const camRow = h('label', { class: 'field mix-row' }, h('span', null, 'Cámara'), camSel);
+  camRow.hidden = !settings.camera;
+  const guestVideo = h('video', { autoplay: true, playsInline: true, muted: true });
+  guestVideo.setAttribute('playsinline', '');
+  const guestLabel = h('p', { class: 'small muted' }, '');
+  const guestBox = h('div', { class: 'broadcast-guest', hidden: true }, guestLabel, guestVideo);
   const micMeter = h('div', { class: 'level-fill' });
   const mixMeter = h('div', { class: 'level-fill' });
   const startBtn = button('📡 Iniciar transmisión', () => void start(), 'btn btn-primary');
@@ -79,6 +91,10 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
     musicDevRow,
     h('label', { class: 'field mix-row' }, h('span', null, 'Volumen música'), musicDb, musicDbLabel),
     h('label', { class: 'field-check small' }, monitor, h('span', null, 'Escuchar la música y los cantantes también en este equipo')),
+    h('label', { class: 'field-check small' }, camera, h('span', null, '📷 Emitir también mi cámara (los jugadores me ven sobre su cartón)')),
+    camRow,
+    camPreview,
+    guestBox,
     h('div', { class: 'row mix-row' }, h('span', { class: 'small muted' }, 'Nivel enviado'), h('div', { class: 'level-meter' }, mixMeter)),
     h('div', { class: 'actions' }, startBtn, stopBtn, muteBtn),
   );
@@ -95,6 +111,8 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
     settings.musicDeviceId = musicDev.value;
     settings.musicDb = Number(musicDb.value);
     settings.monitor = monitor.checked;
+    settings.camera = camera.checked;
+    settings.cameraId = camSel.value;
     micDbLabel.textContent = fmtDb(settings.micDb);
     musicDbLabel.textContent = fmtDb(settings.musicDb);
     saveBroadcastSettings(settings);
@@ -111,6 +129,12 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
     persist();
     active?.mixer.setMonitor(settings.monitor);
   });
+  camera.addEventListener('change', () => {
+    persist();
+    camRow.hidden = !settings.camera;
+    if (active) toast('La cámara se aplica al iniciar la transmisión: detén y vuelve a iniciar.', 'info');
+  });
+  camSel.addEventListener('change', persist);
   micSel.addEventListener('change', () => {
     persist();
     if (active) void active.mixer.setMic(settings.micId, settings.micDb).catch((err) => toast(errorMessage(err), 'error'));
@@ -132,6 +156,10 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
     try {
       const all = await navigator.mediaDevices.enumerateDevices();
       const inputs = all.filter((d) => d.kind === 'audioinput');
+      const cams = all.filter((d) => d.kind === 'videoinput');
+      while (camSel.options.length > 1) camSel.remove(1);
+      for (const d of cams) camSel.appendChild(h('option', { value: d.deviceId }, d.label || `Cámara ${camSel.options.length}`));
+      camSel.value = cams.some((d) => d.deviceId === settings.cameraId) ? settings.cameraId : '';
       for (const [sel, saved] of [[micSel, settings.micId], [musicDev, settings.musicDeviceId]] as const) {
         while (sel.options.length > 1) sel.remove(1);
         for (const d of inputs) sel.appendChild(h('option', { value: d.deviceId }, d.label || `Entrada ${sel.options.length}`));
@@ -166,6 +194,14 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
       } catch (err) {
         toast(`Se transmite solo la voz. Música: ${errorMessage(err)}`, 'error');
       }
+      if (settings.camera) {
+        try {
+          camPreview.srcObject = await mixer.setCamera(settings.cameraId);
+          camPreview.hidden = false;
+        } catch (err) {
+          toast(`Se transmite sin cámara: ${errorMessage(err)}`, 'error');
+        }
+      }
       const session = liveSession(link, { token: loadToken(), name: 'Animador' });
       const publisher = new LiveHostPublisher(session);
       publisher.useStream(mixer.stream);
@@ -180,7 +216,17 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
           else setStatus('🔴 Sin conexión con el servidor', true);
         }),
       ];
-      active = { mixer, publisher, offs };
+      // Cámara del invitado que canta o habla: el animador la ve aquí (sin consumir su propia transmisión).
+      const guestViewer = new LiveViewer(session, {
+        onGuest: (stream, name) => {
+          guestBox.hidden = !stream;
+          guestVideo.srcObject = stream;
+          guestLabel.textContent = stream ? `🎤 ${name || 'Invitado'} en cámara` : '';
+          if (stream) void guestVideo.play().catch(() => undefined);
+        },
+      }, { only: 'guest' });
+      void guestViewer.start().catch(() => undefined);
+      active = { mixer, publisher, offs, guestViewer };
       listeners.textContent = `👥 ${session.ack?.viewers ?? 0}`;
       setStatus(`🔴 Transmitiendo${mixer.musicActive ? ' voz + música' : ' (solo voz)'}`, true);
       meterTimer = setInterval(() => {
@@ -202,6 +248,9 @@ export function renderBroadcastPanel(game: GameState): HTMLElement {
   };
   const stop = async () => {
     await releaseBroadcast();
+    camPreview.srcObject = null;
+    camPreview.hidden = true;
+    guestBox.hidden = true;
     micMeter.style.width = '0%';
     mixMeter.style.width = '0%';
     muteBtn.textContent = '🎙 Silenciar mi micrófono';

@@ -36,7 +36,12 @@ export function createLiveHostVideo(session: LiveSession, options: LiveHostVideo
   const overlay = h('div', { class: 'live-overlay', hidden: true }, cta);
   const reactionsLayer = h('div', { class: 'reaction-layer' });
   const audioOnly = h('div', { class: 'live-audio-only', hidden: true }, h('div', { class: 'live-placeholder-icon' }, '🔊'), h('p', null, 'Audio en directo'));
-  const frame = h('div', { class: 'live-frame' }, video, placeholder, audioOnly, reactionsLayer, overlay, h('div', { class: 'live-topbar' }, badge, status, viewers));
+  // Cámara del invitado que canta o habla: recuadro sobre la transmisión (o a pantalla completa si el animador no emite vídeo).
+  const guestVideo = h('video', { class: 'live-guest-video', autoplay: true, playsInline: true, muted: true });
+  guestVideo.setAttribute('playsinline', '');
+  const guestName = h('span', { class: 'live-guest-name' }, '');
+  const guest = h('div', { class: 'live-guest', hidden: true }, guestVideo, guestName);
+  const frame = h('div', { class: 'live-frame' }, video, placeholder, audioOnly, guest, reactionsLayer, overlay, h('div', { class: 'live-topbar' }, badge, status, viewers));
   const bar = h('div', { class: 'live-reactions' });
   let lastReaction = 0;
   for (const emoji of REACTIONS) {
@@ -94,7 +99,15 @@ export function createLiveHostVideo(session: LiveSession, options: LiveHostVideo
     onStream: (stream) => {
       if (video.srcObject !== stream) video.srcObject = stream;
       audioOnly.hidden = stream.getVideoTracks().length > 0; // transmisión solo de audio (mesa de mezcla del anfitrión)
+      frame.classList.toggle('host-has-video', stream.getVideoTracks().length > 0);
       tryPlay();
+    },
+    onGuest: (stream, name) => {
+      guest.hidden = !stream;
+      guestVideo.srcObject = stream;
+      guestName.textContent = stream ? `🎤 ${name || 'Invitado'}` : '';
+      wrap.classList.toggle('has-guest', !!stream);
+      if (stream) void guestVideo.play().catch(() => undefined);
     },
     onLive: (state) => {
       liveState = state;

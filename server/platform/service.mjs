@@ -575,7 +575,9 @@ export class PlatformService {
       event: this.publicEvent(e),
       cards: access.cards.map((c) => ({ id: c.id, index: c.index, acquisitionType: c.acquisitionType })),
       game: { seed: e.game.seed, gridSize: e.game.gridSize, freeCenter: e.game.freeCenter, cardCount: e.game.cardCount, poolSize: e.game.tracks.length, pool: e.game.tracks, topic: e.game.topic, title: e.game.playlistName || e.name },
-      live: { roomId: e.liveRoomId, streaming: e.eventMode !== 'LOCAL' },
+      // La tarjeta siempre se conecta a la sala Live (el animador puede transmitir voz, música o cámara en cualquier
+      // modalidad); 'expected' indica si la transmisión forma parte del evento (online/híbrido) o es opcional (presencial).
+      live: { roomId: e.liveRoomId, streaming: true, expected: e.eventMode !== 'LOCAL' },
     };
   }
 

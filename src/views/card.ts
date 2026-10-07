@@ -65,6 +65,8 @@ export interface PlayerCardsOptions {
   liveEvent?: string | undefined;
   /** Karaoke del evento: servidor y sala donde el jugador puede apuntarse para cantar. */
   karaoke?: { url: string; room: string } | undefined;
+  /** Evento presencial: el marco de vídeo solo aparece cuando el animador o un invitado transmiten. */
+  liveHideWhenIdle?: boolean | undefined;
 }
 
 interface CardState {
@@ -135,7 +137,7 @@ export function renderPlayerCards(root: HTMLElement, cards: SharedCard[], player
     ),
   );
   if (session) {
-    liveVideo = createLiveHostVideo(session);
+    liveVideo = createLiveHostVideo(session, { hideWhenIdle: options.liveHideWhenIdle === true });
     root.appendChild(liveVideo.el);
   }
   root.appendChild(live);
@@ -196,6 +198,8 @@ export function renderPlayerCards(root: HTMLElement, cards: SharedCard[], player
         cells: s.cells,
         marked: ev.marked,
         highlighted: new Set(ev.completedLines.flat()),
+        bingo: true,
+        label: `Tarjeta ${s.shared.n + 1}`,
         onToggle: (i) => {
           if (s.autoMarks[i]) return; // lo marcó el anfitrión: no se puede desmarcar
           s.marks[i] = !s.marks[i];

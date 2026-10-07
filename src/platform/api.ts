@@ -37,7 +37,7 @@ export interface AccessBundle {
   event?: PublicEvent;
   cards?: { id: string; index: number; acquisitionType: string }[];
   game?: { seed: string; gridSize: 3 | 4 | 5; freeCenter: boolean; cardCount: number; poolSize: number; pool: [string, string][]; topic: string; title: string };
-  live?: { roomId: string; streaming: boolean };
+  live?: { roomId: string; streaming: boolean; expected?: boolean };
 }
 
 export interface Order {

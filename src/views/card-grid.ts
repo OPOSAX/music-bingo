@@ -16,10 +16,19 @@ export interface CardGridOptions {
   highlighted?: ReadonlySet<number>;
   onToggle?: (index: number) => void;
   compact?: boolean;
+  /** Aspecto de cartón de bingo: cabecera con letras, casillas en cuadrícula y sello al marcar. */
+  bingo?: boolean;
+  /** Texto de la cabecera del cartón (p. ej. número de tarjeta). */
+  label?: string;
+}
+
+/** Letras de la cabecera según el tamaño: B·I·N·G·O para 5×5; H·I·T·S y H·I·T para los pequeños. */
+export function headerLetters(gridSize: GridSize): string[] {
+  return gridSize === 5 ? ['B', 'I', 'N', 'G', 'O'] : gridSize === 4 ? ['H', 'I', 'T', 'S'] : ['H', 'I', 'T'];
 }
 
 export function renderCardGrid(options: CardGridOptions): HTMLElement {
-  const { gridSize, cells, marked, highlighted, onToggle, compact } = options;
+  const { gridSize, cells, marked, highlighted, onToggle, compact, bingo, label } = options;
   const grid = h('div', {
     class: `card-grid size-${gridSize}${compact ? ' compact' : ''}${onToggle ? ' interactive' : ''}`,
     style: { gridTemplateColumns: `repeat(${gridSize}, 1fr)` },
@@ -42,5 +51,7 @@ export function renderCardGrid(options: CardGridOptions): HTMLElement {
     }
     grid.appendChild(el);
   });
-  return grid;
+  if (!bingo) return grid;
+  const letters = h('div', { class: 'bingo-letters', style: { gridTemplateColumns: `repeat(${gridSize}, 1fr)` } }, ...headerLetters(gridSize).map((l) => h('span', null, l)));
+  return h('div', { class: `bingo-card size-${gridSize}` }, h('div', { class: 'bingo-head' }, h('span', { class: 'bingo-brand' }, '🎵 BINGO HIT'), label ? h('span', { class: 'bingo-label' }, label) : null), letters, grid);
 }
